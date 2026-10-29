@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mop
+      POSTGRES_PASSWORD: mop
+      POSTGRES_DB: mop
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mop"]
+      interval: 2s
+      retries: 15
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://mop:mop@db:5432/mop
+      PORT: 8080
+    env_file: .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npx prisma generate && npm run dev"
+
+volumes:
+  pgdata:
