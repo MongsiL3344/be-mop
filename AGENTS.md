@@ -2,7 +2,7 @@
 Stop, explain what you need and why, and wait until the user confirms the team lead approved it. Do not proceed on your own judgment. The following always require approval:
 If the current branch (`git status`) is `mong`, the user is the team lead: this section does not apply, and the `park`-only rules in the Git section do not apply either.
 - Importing from another feature's folder (`src/features/<other>/`). If approved, import only that.
-- Editing a file in another feature's folder, in `src/lib/`, in `src/index.ts`, or a model in `prisma/schema.prisma` owned by another feature.
+- Editing a file in another feature's folder, in `src/lib/`, or a model in `prisma/schema.prisma` owned by another feature. Editing `src/index.ts` for anything other than mounting your feature's router (see Project structure).
 - Adding or removing a dependency in `package.json`.
 - Editing config files: `package.json` scripts, `tsconfig.json`, `prisma.config.ts`, `compose.yaml`, `Dockerfile`.
 - `AGENTS.md` itself: never edit it. Not even with approval; only the team lead changes it on `mong`.
@@ -24,7 +24,7 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 ## Docker
 - `compose.yaml` is development-only. Inside the `api` container `DATABASE_URL` and `PORT` come from `compose.yaml`, not `.env`.
 - Run Prisma commands inside the container: `docker compose exec api npx prisma ...`.
-- After changing `package.json`, rebuild with `docker compose up --build`.
+- After changing `package.json`, rebuild with `docker compose up --build -V` (`-V` recreates the `node_modules` volume; without it the old modules are reused).
 
 ## Verification
 - After every code change, run `docker compose exec api npx tsc --noEmit` and paste the result to the user. Work is not done while it reports errors.
@@ -33,10 +33,14 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 
 ## Project structure (feature modules)
 - `src/features/<feature>/` holds one feature as flat files: `controller.ts` (Express router: parse request, call service, send response), `service.ts` (business logic, calls Prisma directly), `schema.ts` (zod schemas and their inferred types). Add a `repository.ts` only when a feature accumulates complex queries; do not create subfolders.
-- `src/lib/` holds code shared by several features (db client, session helpers). `src/index.ts` only wires middleware and mounts feature routers.
+- `src/lib/` holds shared code: `db.ts` (`prisma` client), `socket.ts` (`io`), `errors.ts` (`httpError`, `errorHandler`). Import these; never create another `PrismaClient` or socket.io `Server`.
+- `src/index.ts` only wires middleware and mounts feature routers. Mounting your own router (one `app.use("/<feature>", <feature>Router)` line) is allowed without approval; mount it above `app.use(errorHandler)`. Never export anything from `src/index.ts` (circular import).
 - Work on one feature at a time. Code that several features genuinely share belongs in `src/lib/` (approval required, see above).
 
 ## Code rules
-- Validate every request body, query, and params with a zod schema from `schema.ts` before use. Never read `req.body` fields directly.
+- Validate every request body, query, and params with `schema.parse(...)` using a zod schema from `schema.ts` before use. Never read `req.body` fields directly. Do not use `safeParse`; a thrown `ZodError` becomes a 400 automatically.
+- Error handling: in `service.ts` throw `httpError(status, "message")` from `src/lib/errors.ts`. Do not `try/catch` in controllers; `errorHandler` turns `ZodError` into 400, `httpError` into its status, and anything else into 500.
+- Schema changes: run `docker compose exec api npx prisma migrate dev --name <description>` and commit `prisma/migrations/`. Never run `prisma db push` or `prisma migrate reset`.
+- Code comments and commit messages are written in Korean.
 - Never hardcode secrets or connection strings. Read them from `process.env`. When adding a new environment variable, add it to `.env.example` with a placeholder value.
 - Implement only what the user asked for. Do not add features, options, or refactors that were not requested. If you notice something else that seems needed, do not do it; list it as a suggestion when you finish.
