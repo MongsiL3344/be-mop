@@ -1,0 +1,11 @@
+// generator·datasource만
+// 모델은 기능별 파일 prisma/schema/<feature>.prisma에 작성
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

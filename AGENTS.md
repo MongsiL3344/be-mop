@@ -2,7 +2,7 @@
 Stop, explain what you need and why, and wait until the user confirms the team lead approved it. Do not proceed on your own judgment. The following always require approval:
 If the current branch (`git status`) is `mong`, the user is the team lead: this section does not apply, and the `park`-only rules in the Git section do not apply either.
 - Importing from another feature's folder (`src/features/<other>/`). If approved, import only that.
-- Editing a file in another feature's folder, in `src/lib/`, or a model in `prisma/schema.prisma` owned by another feature. Editing `src/app.ts` for anything other than mounting your feature's router, or editing `src/index.ts` at all (see Project structure).
+- Editing a file in another feature's folder, in `src/lib/`, or another feature's `prisma/schema/<other>.prisma`; editing `prisma/schema/schema.prisma` (generator/datasource) at all. Editing `src/app.ts` for anything other than mounting your feature's router, or editing `src/index.ts` at all (see Project structure).
 - Adding or removing a dependency in `package.json`.
 - Editing config files: `package.json` scripts, `tsconfig.json`, `prisma.config.ts`, `compose.yaml`, `Dockerfile`.
 - `AGENTS.md` itself: never edit it. Not even with approval; only the team lead changes it on `mong`.
@@ -24,7 +24,7 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 ## Docker
 - `compose.yaml` is development-only. Inside the `api` container `DATABASE_URL`, `TEST_DATABASE_URL` and `PORT` come from `compose.yaml`, not `.env`.
 - Run Prisma commands inside the container: `docker compose exec api npx prisma ...`.
-- After changing `package.json`, rebuild with `docker compose up --build -V` (`-V` recreates the `node_modules` volume; without it the old modules are reused).
+- Start everything with `docker compose up`; on start the `api` container applies pending migrations (`prisma migrate deploy`) and regenerates the Prisma client. After pulling `dev`, or whenever `package.json` changed, use `docker compose up --build -V` instead (`-V` recreates the `node_modules` volume; without it the old modules are reused).
 
 ## Verification
 - After every code change, run `docker compose exec api npx tsc --noEmit` and `docker compose exec api npx vitest run tests/<feature>` and paste both results to the user. Work is not done while either reports errors or failures.
@@ -47,7 +47,7 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 ## Code rules
 - Validate every request body, query, and params with `schema.parse(...)` using a zod schema from `schema.ts` before use. Never read `req.body` fields directly. Do not use `safeParse`; a thrown `ZodError` becomes a 400 automatically.
 - Error handling: in `service.ts` throw `httpError(status, "message")` from `src/lib/errors.ts`. Do not `try/catch` in controllers; `errorHandler` turns `ZodError` into 400, `httpError` into its status, and anything else into 500.
-- Schema changes: run `docker compose exec api npx prisma migrate dev --name <description>` and commit `prisma/migrations/`. Never run `prisma db push` or `prisma migrate reset`.
+- Schema changes: models live in `prisma/schema/<feature>.prisma`, one file per feature (Prisma reads the whole folder; relations across files work). Create or edit only your own file, run `docker compose exec api npx prisma migrate dev --name <feature>_<description>` (e.g. `auth_add_user`), then `docker compose restart api` so the client is regenerated. Commit your `.prisma` file and the new `prisma/migrations/<folder>/` in the same commit as the feature code. Never edit a committed `migration.sql`; fix the schema and create another migration. Never run `prisma db push` or `prisma migrate reset`.
 - Code comments and commit messages are written in Korean.
 - Never hardcode secrets or connection strings. Read them from `process.env`. When adding a new environment variable, add it to `.env.example` with a placeholder value.
 - Implement only what the user asked for. Do not add features, options, or refactors that were not requested. If you notice something else that seems needed, do not do it; list it as a suggestion when you finish.
