@@ -1,10 +1,10 @@
 ## Team lead approval required
-Stop, explain what you need and why, and wait until the user confirms the team lead approved it. Do not proceed on your own judgment. The following always require approval:
 If the current branch (`git status`) is `mong`, the user is the team lead: this section does not apply, and the `park`-only rules in the Git section do not apply either.
+Otherwise, stop, explain what you need and why, and wait until the user confirms the team lead approved it. Do not proceed on your own judgment. The following always require approval:
 - Importing from another feature's folder (`src/features/<other>/`). If approved, import only that.
 - Editing a file in another feature's folder, in `src/lib/`, or another feature's `prisma/schema/<other>.prisma`; editing `prisma/schema/schema.prisma` (generator/datasource) at all. Editing `src/app.ts` for anything other than mounting your feature's router, or editing `src/index.ts` at all (see Project structure).
 - Adding or removing a dependency in `package.json`.
-- Editing config files: `package.json` scripts, `tsconfig.json`, `prisma.config.ts`, `compose.yaml`, `Dockerfile`.
+- Editing config files: `package.json` scripts, `tsconfig.json`, `tsconfig.build.json`, `prisma.config.ts`, `compose.yaml`, `Dockerfile`.
 - `AGENTS.md` itself: never edit it. Not even with approval; only the team lead changes it on `mong`.
 
 ## Git
@@ -23,17 +23,17 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 
 ## Docker
 - `compose.yaml` is development-only. Inside the `api` container `DATABASE_URL`, `TEST_DATABASE_URL` and `PORT` come from `compose.yaml`, not `.env`.
-- Run Prisma commands inside the container: `docker compose exec api npx prisma ...`.
-- Start everything with `docker compose up`; on start the `api` container applies pending migrations (`prisma migrate deploy`) and regenerates the Prisma client. After pulling `dev`, or whenever `package.json` changed, use `docker compose up --build -V` instead (`-V` recreates the `node_modules` volume; without it the old modules are reused).
+- Run the databases (`db`, `db-test`) with `docker compose`. Commands (`npx tsc`, `npx vitest`, `npx prisma`) may run on the host (WSL) or inside the `api` container. On the host they read `.env`, so `DATABASE_URL` is the development DB and `.env` must define `TEST_DATABASE_URL`.
+- Start everything with `docker compose up`; on start the `api` container applies pending migrations (`prisma migrate deploy`) and regenerates the Prisma client. After pulling `dev`, or whenever `package.json` changed, use `docker compose up --build -V` instead (`-V` recreates the `node_modules` volume; without it the old modules are reused). If you run commands on the host, also run `npm ci` then (it installs exactly what `package-lock.json` lists and changes no files; allowed without approval, unlike adding or removing a dependency).
 
 ## Verification
-- After every code change, run `docker compose exec api npx tsc --noEmit` and `docker compose exec api npx vitest run tests/<feature>` and paste both results to the user. Work is not done while either reports errors or failures.
+- After every code change, run `npx tsc --noEmit` (checks `src/` and `tests/`) and `npx vitest run tests/<feature>` (on the host or in the container). Work is not done while either reports errors or failures.
 - Never silence a type error with `any`, a type cast (`as`), `!`, `@ts-ignore`, or `@ts-expect-error`. If you cannot fix it properly, show the error as-is and stop.
-- If a command itself fails (container not running, module not found), do not install anything or run it on the host; show the error to the user.
+- If a command itself fails (database not running, module not found), do not install anything beyond the `npm ci` sync described under Docker; show the error to the user.
 
 ## Testing
 - Tests use vitest + supertest against the real test Postgres (`db-test` in `compose.yaml`, reached via `TEST_DATABASE_URL`). No Prisma mocks. Each `it` asserts both the HTTP response and the DB state.
-- Put tests in `tests/<feature>/` and run only your own: `docker compose exec api npx vitest run tests/<feature>`. Never edit another feature's test folder.
+- Put tests in `tests/<feature>/` and run only your own: `npx vitest run tests/<feature>`. Never edit another feature's test folder.
 - `vitest.config.ts` swaps `DATABASE_URL` for `TEST_DATABASE_URL` before any test loads, so the app code always hits the test DB; do not add test-only branches to `src/`. `vitest.setup.ts` applies `prisma migrate deploy` to the test DB once per run; tests do not run migrations themselves.
 - Request through the exported `app` (`import { app } from "../../src/app.js"`) with supertest; never `listen`. Query the DB through the shared `prisma` from `src/lib/db.ts`.
 - Each `it` starts from a clean state: in `beforeEach`, `TRUNCATE TABLE "<T1>", "<T2>" RESTART IDENTITY CASCADE` the tables your feature touches via `prisma.$executeRawUnsafe`, then create your own data. No order dependence between tests, no `it.skip`/`it.todo`/`only`. Call `prisma.$disconnect()` in `afterAll`.
@@ -41,13 +41,13 @@ If the current branch (`git status`) is `mong`, the user is the team lead: this 
 ## Project structure (feature modules)
 - `src/features/<feature>/` holds one feature as flat files: `controller.ts` (Express router: parse request, call service, send response), `service.ts` (business logic, calls Prisma directly), `schema.ts` (zod schemas and their inferred types). Add a `repository.ts` only when a feature accumulates complex queries; do not create subfolders.
 - `src/lib/` holds shared code: `db.ts` (`prisma` client), `socket.ts` (`io`), `errors.ts` (`httpError`, `errorHandler`). Import these; never create another `PrismaClient` or socket.io `Server`.
-- `src/app.ts` builds the express `app` (middleware, feature routers, `errorHandler`) and exports it for tests; `src/index.ts` only creates the http server, attaches socket.io, and listens. Mounting your own router (one `app.use("/<feature>", <feature>Router)` line in `src/app.ts`) is allowed without approval; mount it above `app.use(errorHandler)`. Never export anything from `src/index.ts` (circular import).
+- `src/app.ts` builds the express `app` (middleware, feature routers, `errorHandler`) and exports it for tests; `src/index.ts` only creates the http server, attaches socket.io, and listens. Mount your feature's router with one `app.use(...)` line placed above `app.use(errorHandler)`. Never export anything from `src/index.ts` (circular import).
 - Work on one feature at a time. Code that several features genuinely share belongs in `src/lib/` (approval required, see above).
 
 ## Code rules
 - Validate every request body, query, and params with `schema.parse(...)` using a zod schema from `schema.ts` before use. Never read `req.body` fields directly. Do not use `safeParse`; a thrown `ZodError` becomes a 400 automatically.
 - Error handling: in `service.ts` throw `httpError(status, "message")` from `src/lib/errors.ts`. Do not `try/catch` in controllers; `errorHandler` turns `ZodError` into 400, `httpError` into its status, and anything else into 500.
-- Schema changes: models live in `prisma/schema/<feature>.prisma`, one file per feature (Prisma reads the whole folder; relations across files work). Create or edit only your own file, run `docker compose exec api npx prisma migrate dev --name <feature>_<description>` (e.g. `auth_add_user`), then `docker compose restart api` so the client is regenerated. Commit your `.prisma` file and the new `prisma/migrations/<folder>/` in the same commit as the feature code. Never edit a committed `migration.sql`; fix the schema and create another migration. Never run `prisma db push` or `prisma migrate reset`.
+- Schema changes: models live in `prisma/schema/<feature>.prisma`, one file per feature (Prisma reads the whole folder; relations across files work). Create or edit only your own file. Commit your `.prisma` file and the new `prisma/migrations/<folder>/` in the same commit as the feature code. Never edit a committed `migration.sql`; fix the schema and create another migration. Never run `prisma db push` or `prisma migrate reset`.
 - Code comments and commit messages are written in Korean.
 - Never hardcode secrets or connection strings. Read them from `process.env`. When adding a new environment variable, add it to `.env.example` with a placeholder value.
 - Implement only what the user asked for. Do not add features, options, or refactors that were not requested. If you notice something else that seems needed, do not do it; list it as a suggestion when you finish.
