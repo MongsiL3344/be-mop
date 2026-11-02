@@ -1,0 +1,28 @@
+import express from "express";
+import cors from "cors";
+import session from "express-session";
+import { errorHandler } from "./lib/errors.js";
+
+export const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"] ?? "http://localhost:3000";
+
+const SESSION_SECRET = process.env["SESSION_SECRET"];
+if (!SESSION_SECRET) throw new Error("SESSION_SECRET is not set");
+
+export const app = express();
+
+app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(express.json());
+app.use(
+  session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, sameSite: "lax", maxAge: 1000 * 60 * 60 * 24 * 7 },
+  }),
+);
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.use(errorHandler);
