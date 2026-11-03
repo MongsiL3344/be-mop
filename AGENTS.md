@@ -1,7 +1,7 @@
 ## Team lead approval required
 If the current branch (`git status`) is `mong`, the user is the team lead: this section does not apply, and the `park`-only rules in the Git section do not apply either.
 Otherwise, stop, explain what you need and why, and wait until the user confirms the team lead approved it. Do not proceed on your own judgment. The following always require approval:
-- Importing from another feature's folder (`src/features/<other>/`). If approved, import only that.
+- Importing from another feature's folder (`src/features/<other>/`). If importing something from another feature would make your work easier, do not import it on your own: tell the user what you want to import and why, and have them agree on that integration with the team lead. If approved, import only that.
 - Editing a file in another feature's folder, in `src/lib/`, or another feature's `prisma/schema/<other>.prisma`; editing `prisma/schema/schema.prisma` (generator/datasource) at all. Editing `src/app.ts` for anything other than mounting your feature's router, or editing `src/index.ts` at all (see Project structure).
 - Adding or removing a dependency in `package.json`.
 - Editing config files: `package.json` scripts, `tsconfig.json`, `tsconfig.build.json`, `prisma.config.ts`, `compose.yaml`, `Dockerfile`.
@@ -40,15 +40,15 @@ Otherwise, stop, explain what you need and why, and wait until the user confirms
 - Each `it` starts from a clean state: in `beforeEach`, `TRUNCATE TABLE "<T1>", "<T2>" RESTART IDENTITY CASCADE` the tables your feature touches via `prisma.$executeRawUnsafe`, then create your own data. No order dependence between tests, no `it.skip`/`it.todo`/`only`. Call `prisma.$disconnect()` in `afterAll`.
 
 ## Project structure (feature modules)
-- `src/features/<feature>/` holds one feature as flat files: `controller.ts` (Express router: parse request, call service, send response), `service.ts` (business logic, calls Prisma directly), `schema.ts` (zod schemas and their inferred types). Add a `repository.ts` only when a feature accumulates complex queries; do not create subfolders.
+- `src/features/<feature>/` holds one feature: `controller.ts` (Express router: parse request, call service, send response) and `service.ts` (business logic, calls Prisma directly) as flat files, plus a `dto/` folder for zod schemas and their inferred types (file names inside `dto/` are up to you). Add a flat `repository.ts` only when a feature accumulates complex queries. `dto/` is the only subfolder; do not create others.
 - `src/lib/` holds shared code: `db.ts` (`prisma` client), `socket.ts` (`io`), `errors.ts` (`httpError`, `errorHandler`). Import these; never create another `PrismaClient` or socket.io `Server`.
 - `src/app.ts` builds the express `app` (middleware, feature routers, `errorHandler`) and exports it for tests; `src/index.ts` only creates the http server, attaches socket.io, and listens. Mount your feature's router with one `app.use(...)` line placed above `app.use(errorHandler)`. Never export anything from `src/index.ts` (circular import).
 - Work on one feature at a time. Code that several features genuinely share belongs in `src/lib/` (approval required, see above).
 
 ## Code rules
-- Validate every request body, query, and params with `schema.parse(...)` using a zod schema from `schema.ts` before use. Never read `req.body` fields directly. Do not use `safeParse`; a thrown `ZodError` becomes a 400 automatically.
+- Validate every request body, query, and params with `schema.parse(...)` before use; define that zod schema in a DTO file inside your feature's `dto/` folder. Never read `req.body` fields directly. Do not use `safeParse`; a thrown `ZodError` becomes a 400 automatically.
 - Error handling: in `service.ts` throw `httpError(status, "message")` from `src/lib/errors.ts`. Do not `try/catch` in controllers; `errorHandler` turns `ZodError` into 400, `httpError` into its status, and anything else into 500.
-- Schema changes: models live in `prisma/schema/<feature>.prisma`, one file per feature (Prisma reads the whole folder; relations across files work). Create or edit only your own file. Commit your `.prisma` file and the new `prisma/migrations/<folder>/` in the same commit as the feature code. Never edit a committed `migration.sql`; fix the schema and create another migration. Never run `prisma db push` or `prisma migrate reset`.
+- Schema changes: models live in `prisma/schema/<feature>.prisma`, one file per feature (Prisma reads the whole folder; relations across files work). Create or edit only your own file. Name each migration `<feature>_<description>` in snake_case (e.g. `npx prisma migrate dev --name user_add_user` → `prisma/migrations/<timestamp>_user_add_user/`). Commit your `.prisma` file and the new `prisma/migrations/<folder>/` in the same commit as the feature code. Never edit a committed `migration.sql`; fix the schema and create another migration. Never run `prisma db push` or `prisma migrate reset`.
 - Code comments and commit messages are written in Korean.
 - Never hardcode secrets or connection strings. Read them from `process.env`. When adding a new environment variable, add it to `.env.example` with a placeholder value.
 - Implement only what the user asked for. Do not add features, options, or refactors that were not requested. If you notice something else that seems needed, do not do it; list it as a suggestion when you finish.

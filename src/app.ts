@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import { errorHandler } from "./lib/errors.js";
+import { userRouter } from "./features/user/controller.js";
 
 export const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"] ?? "http://localhost:3000";
 
@@ -24,5 +25,7 @@ app.use(
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
+
+app.use("/users", userRouter);
 
 app.use(errorHandler);

@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { app } from "../../src/app.js";
 import { prisma } from "../../src/lib/db.js";
 
-const SIGNUP = "/auth/signup";
+const SIGNUP = "/users/signup";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const valid = { email: "alice@example.com", password: "password1", nickname: "alice" };
