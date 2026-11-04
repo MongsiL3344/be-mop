@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
+
 export const signupSchema = z.object({
-  email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
+  email: emailSchema,
   password: z
     .string()
     .min(8)
@@ -12,3 +14,13 @@ export const signupSchema = z.object({
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z
+    .string()
+    .min(1)
+    .refine((p) => Buffer.byteLength(p, "utf8") <= 72, "비밀번호는 UTF-8 72바이트 이하여야 합니다"),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;

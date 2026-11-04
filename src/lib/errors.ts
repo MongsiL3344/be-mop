@@ -17,6 +17,12 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return;
   }
 
+  // JSON 구문 오류: body-parser 메시지에 요청 본문(비밀번호 등)이 섞이므로 고정 메시지로 응답
+  if (err?.type === "entity.parse.failed") {
+    res.status(400).json({ error: "invalid request" });
+    return;
+  }
+
   // 그 외 HTTP 에러
   if (err instanceof Error && "status" in err && typeof err.status === "number") {
     res.status(err.status).json({ error: err.message });

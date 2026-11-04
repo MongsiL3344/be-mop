@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../lib/db.js";
 import { httpError } from "../../lib/errors.js";
-import type { SignupInput } from "./dto/request.js";
+import type { LoginInput, SignupInput } from "./dto/request.js";
 
 export const signup = async ({ email, password, nickname }: SignupInput) => {
   const passwordHash = await bcrypt.hash(password, 10);
@@ -15,4 +15,12 @@ export const signup = async ({ email, password, nickname }: SignupInput) => {
     }
     throw err;
   }
+};
+
+export const login = async ({ email, password }: LoginInput) => {
+  const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    throw httpError(401, "이메일 또는 비밀번호가 올바르지 않아요");
+  }
+  return { id: user.id, email: user.email, nickname: user.nickname };
 };
