@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import { errorHandler } from "./lib/errors.js";
+import { checkOrigin } from "./lib/origin.js";
 import { userRouter } from "./features/user/controller.js";
 
 export const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"] ?? "http://localhost:3000";
@@ -12,6 +13,7 @@ if (!SESSION_SECRET) throw new Error("SESSION_SECRET is not set");
 export const app = express();
 
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(checkOrigin(CLIENT_ORIGIN));
 app.use(express.json());
 app.use(
   session({
