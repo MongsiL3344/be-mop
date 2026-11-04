@@ -1,13 +1,8 @@
 import { Router } from "express";
 import { promisify } from "node:util";
+import { requireLogin } from "../../lib/auth.js";
 import { loginSchema, signupSchema } from "./dto/request.js";
-import { login, signup } from "./service.js";
-
-declare module "express-session" {
-  interface SessionData {
-    userId: string;
-  }
-}
+import { login, me, signup } from "./service.js";
 
 export const userRouter = Router();
 
@@ -26,4 +21,8 @@ userRouter.post("/login", async (req, res) => {
 userRouter.post("/logout", async (req, res) => {
   await promisify(req.session.destroy.bind(req.session))();
   res.clearCookie("sid").status(204).end();
+});
+
+userRouter.get("/me", requireLogin, async (req, res) => {
+  res.json(await me(req.userId));
 });

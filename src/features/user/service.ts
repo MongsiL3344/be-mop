@@ -24,3 +24,6 @@ export const login = async ({ email, password }: LoginInput) => {
   }
   return { id: user.id, email: user.email, nickname: user.nickname };
 };
+
+export const me = (userId: string) =>
+  prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, email: true, nickname: true } });
