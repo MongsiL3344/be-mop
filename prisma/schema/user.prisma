@@ -6,6 +6,8 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   deletedAt    DateTime? @map("deleted_at")
 
+  notifications Notification[]
+
   @@unique([email], where: { deletedAt: null })
   @@unique([nickname], where: { deletedAt: null })
 }
