@@ -8,5 +8,4 @@ dist/
 .omp
 .specify
 .vitest
-specs
 reports/
