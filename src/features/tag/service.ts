@@ -3,7 +3,7 @@ import { prisma } from "../../lib/db.js";
 import { httpError } from "../../lib/errors.js";
 import type { CreateTagInput, UpdateTagInput } from "./dto/request.js";
 
-// 이름 중복(대소문자 무시 고유 인덱스 위반) → 409, 수정 대상 없음 → 404
+// 이름 중복(대소문자 무시 고유 인덱스 위반) → 409, 수정·삭제 대상 없음 → 404
 const toTagHttpError = async <T>(query: () => Promise<T>) => {
   try {
     return await query();
@@ -44,3 +44,11 @@ export const updateTechStack = (id: string, { name }: UpdateTagInput) =>
 
 export const updatePosition = (id: string, { name }: UpdateTagInput) =>
   toTagHttpError(() => prisma.position.update({ where: { id }, data: { name }, select: { id: true, name: true } }));
+
+export const deleteTechStack = async (id: string) => {
+  await toTagHttpError(() => prisma.techStack.delete({ where: { id } }));
+};
+
+export const deletePosition = async (id: string) => {
+  await toTagHttpError(() => prisma.position.delete({ where: { id } }));
+};

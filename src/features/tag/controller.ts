@@ -4,6 +4,8 @@ import { createTagSchema, tagIdParamSchema, updateTagSchema } from "./dto/reques
 import {
   createPosition,
   createTechStack,
+  deletePosition,
+  deleteTechStack,
   listPositions,
   listTechStacks,
   updatePosition,
@@ -36,4 +38,16 @@ tagRouter.patch("/tech-stacks/:id", requireAdmin, async (req, res) => {
 tagRouter.patch("/positions/:id", requireAdmin, async (req, res) => {
   const { id } = tagIdParamSchema.parse(req.params);
   res.json(await updatePosition(id, updateTagSchema.parse(req.body)));
+});
+
+tagRouter.delete("/tech-stacks/:id", requireAdmin, async (req, res) => {
+  const { id } = tagIdParamSchema.parse(req.params);
+  await deleteTechStack(id);
+  res.status(204).end();
+});
+
+tagRouter.delete("/positions/:id", requireAdmin, async (req, res) => {
+  const { id } = tagIdParamSchema.parse(req.params);
+  await deletePosition(id);
+  res.status(204).end();
 });
