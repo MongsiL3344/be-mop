@@ -1,7 +1,14 @@
 import { Router } from "express";
 import { requireAdmin } from "../../lib/auth.js";
-import { createTagSchema } from "./dto/request.js";
-import { createPosition, createTechStack, listPositions, listTechStacks } from "./service.js";
+import { createTagSchema, tagIdParamSchema, updateTagSchema } from "./dto/request.js";
+import {
+  createPosition,
+  createTechStack,
+  listPositions,
+  listTechStacks,
+  updatePosition,
+  updateTechStack,
+} from "./service.js";
 
 export const tagRouter = Router();
 
@@ -19,4 +26,14 @@ tagRouter.post("/tech-stacks", requireAdmin, async (req, res) => {
 
 tagRouter.post("/positions", requireAdmin, async (req, res) => {
   res.status(201).json(await createPosition(createTagSchema.parse(req.body)));
+});
+
+tagRouter.patch("/tech-stacks/:id", requireAdmin, async (req, res) => {
+  const { id } = tagIdParamSchema.parse(req.params);
+  res.json(await updateTechStack(id, updateTagSchema.parse(req.body)));
+});
+
+tagRouter.patch("/positions/:id", requireAdmin, async (req, res) => {
+  const { id } = tagIdParamSchema.parse(req.params);
+  res.json(await updatePosition(id, updateTagSchema.parse(req.body)));
 });

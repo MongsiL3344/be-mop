@@ -15,3 +15,13 @@ export const createTagSchema = z.object({
 });
 
 export type CreateTagInput = z.infer<typeof createTagSchema>;
+
+export const updateTagSchema = z.object({
+  name: tagNameSchema,
+});
+
+export type UpdateTagInput = z.infer<typeof updateTagSchema>;
+
+export const tagIdParamSchema = z.object({
+  id: z.uuid(),
+});
