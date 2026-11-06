@@ -1,8 +1,16 @@
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String
   passwordHash String
   nickname     String
+  introduction String?
+  links        String[]  @default([])
+  role         Role      @default(USER)
   createdAt    DateTime  @default(now()) @map("created_at")
   deletedAt    DateTime? @map("deleted_at")
 
