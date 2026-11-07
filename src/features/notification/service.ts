@@ -22,7 +22,7 @@ export const listNotifications = async (userId: string, { cursor }: ListNotifica
   const rows = await prisma.notification.findMany({
     where: {
       userId,
-      
+      // 커서보다 오래된 알림만: 생성 시각이 더 이르거나, 같으면 id가 더 작은 것
       ...(cursorRow && {
         OR: [
           { createdAt: { lt: cursorRow.createdAt } },
