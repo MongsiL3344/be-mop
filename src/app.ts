@@ -4,6 +4,7 @@ import session from "express-session";
 import { errorHandler } from "./lib/errors.js";
 import { checkOrigin } from "./lib/origin.js";
 import { userRouter } from "./features/user/controller.js";
+import { notificationRouter } from "./features/notification/controller.js";
 
 export const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"] ?? "http://localhost:3000";
 
@@ -30,5 +31,6 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/users", userRouter);
+app.use("/notifications", notificationRouter);
 
 app.use(errorHandler);
