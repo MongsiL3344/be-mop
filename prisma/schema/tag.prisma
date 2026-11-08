@@ -1,0 +1,11 @@
+// 이름 고유성은 대소문자 무시: 마이그레이션 SQL에서 lower("name") 고유 인덱스로 건다(Prisma가 표현 못 함)
+
+model TechStack {
+  id   String @id @default(uuid())
+  name String
+}
+
+model Position {
+  id   String @id @default(uuid())
+  name String
+}

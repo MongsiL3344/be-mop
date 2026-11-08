@@ -1,0 +1,54 @@
+import { Prisma } from "../../generated/prisma/client.js";
+import { prisma } from "../../lib/db.js";
+import { httpError } from "../../lib/errors.js";
+import type { CreateTagInput, UpdateTagInput } from "./dto/request.js";
+
+// 이름 중복(대소문자 무시 고유 인덱스 위반) → 409, 수정·삭제 대상 없음 → 404
+const toTagHttpError = async <T>(query: () => Promise<T>) => {
+  try {
+    return await query();
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2002") throw httpError(409, "이미 존재하는 이름입니다");
+      if (err.code === "P2025") throw httpError(404, "태그를 찾을 수 없습니다");
+    }
+    throw err;
+  }
+};
+
+// 대소문자를 무시한 이름 오름차순. 그 외에는 문자 코드 순서(영문이 한글보다 앞)
+const byNameIgnoringCase = (a: { name: string }, b: { name: string }) => {
+  const x = a.name.toLowerCase();
+  const y = b.name.toLowerCase();
+  return x < y ? -1 : x > y ? 1 : 0;
+};
+
+export const listTechStacks = async () => {
+  const items = await prisma.techStack.findMany({ select: { id: true, name: true } });
+  return { items: items.sort(byNameIgnoringCase) };
+};
+
+export const listPositions = async () => {
+  const items = await prisma.position.findMany({ select: { id: true, name: true } });
+  return { items: items.sort(byNameIgnoringCase) };
+};
+
+export const createTechStack = ({ name }: CreateTagInput) =>
+  toTagHttpError(() => prisma.techStack.create({ data: { name }, select: { id: true, name: true } }));
+
+export const createPosition = ({ name }: CreateTagInput) =>
+  toTagHttpError(() => prisma.position.create({ data: { name }, select: { id: true, name: true } }));
+
+export const updateTechStack = (id: string, { name }: UpdateTagInput) =>
+  toTagHttpError(() => prisma.techStack.update({ where: { id }, data: { name }, select: { id: true, name: true } }));
+
+export const updatePosition = (id: string, { name }: UpdateTagInput) =>
+  toTagHttpError(() => prisma.position.update({ where: { id }, data: { name }, select: { id: true, name: true } }));
+
+export const deleteTechStack = async (id: string) => {
+  await toTagHttpError(() => prisma.techStack.delete({ where: { id } }));
+};
+
+export const deletePosition = async (id: string) => {
+  await toTagHttpError(() => prisma.position.delete({ where: { id } }));
+};
