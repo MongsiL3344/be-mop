@@ -1,4 +1,3 @@
-# dev로 들어오는 PR을 몽실(Claude)이 자동 리뷰하고 Discord로 알린다.
 name: PR 리뷰 (몽실)
 
 on:
@@ -6,21 +5,18 @@ on:
     types: [opened, synchronize, reopened]
     branches: [dev]
 
-# 같은 PR의 리뷰가 겹쳐서 요약 코멘트를 동시에 고치지 않도록 순서대로 실행
 concurrency:
   group: pr-review-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   review:
-    # 포크 PR은 시크릿을 못 받아서 실패하므로 같은 레포 브랜치만 리뷰한다
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
 
-    # 작업이 끝나면 사라지는 CI 전용 DB라 비밀번호 없이(trust) 띄운다
     env:
       DATABASE_URL: postgresql://mop@localhost:5433/mop_test
       TEST_DATABASE_URL: postgresql://mop@localhost:5433/mop_test
@@ -49,8 +45,6 @@ jobs:
 
       - run: npm ci
 
-      # prisma.config.ts가 .env를 반드시 읽으므로 빈 .env만 만들고, 값은 환경변수로 넘긴다
-      # SESSION_SECRET은 실행마다 랜덤으로 만들고 로그에서 가린다
       - name: CI용 환경 준비
         run: |
           touch .env
@@ -75,7 +69,6 @@ jobs:
           NO_COLOR: "1"
         run: npx vitest run 2>&1 | tee .review/vitest.log
 
-      # PR에서 AGENTS.md를 바꿔도 기준이 흔들리지 않도록 dev의 AGENTS.md를 쓴다
       - name: 리뷰 기준 준비 (dev의 AGENTS.md)
         run: |
           git fetch --depth=1 origin dev
@@ -119,7 +112,7 @@ jobs:
             - 한국어로 짧고 건조하게 쓴다. 인사, 칭찬, 서론은 쓰지 않는다. 지적에는 근거(규칙 또는 비교한 기존 코드 위치)를 붙인다.
             - 코드 위치가 특정되는 지적은 `mcp__github_inline_comment__create_inline_comment`(confirmed: true)로 단다.
             - 인라인 코멘트를 달기 전에 `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments --paginate`로 기존 코멘트를 확인하고, 이미 지적한 내용은 다시 달지 않는다.
-            - 요약 코멘트는 `gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "<본문>"` 한 번으로 작성하거나 갱신한다. 본문 형식:
+            - 요약은 GitHub에 직접 올리지 않는다. structured output의 review_body에 아래 형식의 마크다운으로 쓰면 워크플로우가 PR에 올리고, 다시 리뷰할 때는 같은 코멘트를 갱신한다. 형식:
 
               ## 몽실 리뷰
               (secret_found가 true일 때만 이 줄) 🚨 시크릿으로 보이는 값이 있어 이 PR은 자동으로 닫힌다. 이미 푸시된 값은 노출된 것이므로 해당 키를 폐기·재발급하고, 코드에서 제거한 뒤 PR을 다시 연다.
@@ -134,13 +127,31 @@ jobs:
               - `파일:줄` 내용 (근거)
 
               해당 항목이 없으면 "없음"이라고 쓴다. 개수는 이번 커밋 기준으로 PR 전체에 남아 있는 것을 센다.
-            - 리뷰 텍스트를 메시지로 답하지 말고 GitHub 코멘트로만 남긴다.
-            - 끝으로 structured output에 approval_needed, violations, suggestions(각 분류 개수), secret_found(시크릿 발견 여부), summary(한두 줄 요약, 시크릿 값 금지)를 채운다.
+            - 인라인 코멘트 외의 리뷰 결과는 메시지로 답하지 말고 structured output으로만 낸다.
+            - 끝으로 structured output에 approval_needed, violations, suggestions(각 분류 개수), secret_found(시크릿 발견 여부), summary(한두 줄 요약, 시크릿 값 금지), review_body(위 형식의 요약 마크다운 전체)를 채운다.
           claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*)"
-            --json-schema '{"type":"object","properties":{"approval_needed":{"type":"integer"},"violations":{"type":"integer"},"suggestions":{"type":"integer"},"secret_found":{"type":"boolean"},"summary":{"type":"string"}},"required":["approval_needed","violations","suggestions","secret_found","summary"]}'
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*)"
+            --json-schema '{"type":"object","properties":{"approval_needed":{"type":"integer"},"violations":{"type":"integer"},"suggestions":{"type":"integer"},"secret_found":{"type":"boolean"},"summary":{"type":"string"},"review_body":{"type":"string"}},"required":["approval_needed","violations","suggestions","secret_found","summary","review_body"]}'
 
-      # 닫는 사유는 요약 코멘트에 있다. 여기서 코멘트를 달면 다음 리뷰의 --edit-last가 그 코멘트를 고치게 되므로 달지 않는다
+      - name: 요약 코멘트 작성
+        if: steps.claude.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          marker='<!-- mongsil-review -->'
+          body_file="$RUNNER_TEMP/mongsil-review.md"
+          { echo "$marker"; jq -r '.review_body' <<<"$REVIEW"; } > "$body_file"
+          comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq ".[] | select(.user.type == \"Bot\" and (.body | startswith(\"$marker\"))) | .id" | tail -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -F body=@"$body_file" > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body_file"
+          fi
+
       - name: 시크릿 발견 시 PR 닫기
         if: steps.claude.outcome == 'success' && fromJSON(steps.claude.outputs.structured_output).secret_found
         env:
@@ -170,7 +181,6 @@ jobs:
           fi
           content=$(printf '**[PR 리뷰] %s**\n%s · %s\ntsc %s · vitest %s\n%s' \
             "$PR_TITLE" "$PR_URL" "$PR_AUTHOR" "$(mark "$TSC")" "$(mark "$VITEST")" "$review")
-          # PR 제목 등에 @everyone이 있어도 멘션되지 않도록 allowed_mentions를 비운다
           jq -n --arg content "$content" \
             '{username: "몽실", content: ($content | .[0:2000]), allowed_mentions: {parse: []}}' \
             | curl -fsS -H "Content-Type: application/json" -d @- "$WEBHOOK"
