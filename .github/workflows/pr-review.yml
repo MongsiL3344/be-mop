@@ -1,0 +1,215 @@
+name: PR 리뷰 (몽실)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [dev]
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    env:
+      DATABASE_URL: postgresql://mop@localhost:5433/mop_test
+      TEST_DATABASE_URL: postgresql://mop@localhost:5433/mop_test
+
+    services:
+      db-test:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mop
+          POSTGRES_DB: mop_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U mop -d mop_test"
+          --health-interval 2s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: CI용 환경 준비
+        run: |
+          touch .env
+          mkdir -p .review
+          session_secret=$(openssl rand -hex 32)
+          echo "::add-mask::$session_secret"
+          echo "SESSION_SECRET=$session_secret" >> "$GITHUB_ENV"
+
+      - run: npx prisma generate
+
+      - name: tsc
+        id: tsc
+        continue-on-error: true
+        shell: bash
+        run: npx tsc --noEmit 2>&1 | tee .review/tsc.log
+
+      - name: vitest
+        id: vitest
+        continue-on-error: true
+        shell: bash
+        env:
+          NO_COLOR: "1"
+        run: npx vitest run 2>&1 | tee .review/vitest.log
+
+      - name: 리뷰 기준 준비 (dev의 AGENTS.md)
+        run: |
+          git fetch --depth=1 origin dev
+          git show FETCH_HEAD:AGENTS.md > .review/AGENTS.base.md
+
+      - name: mongsil 앱 토큰 발급
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.MONGSIL_APP_ID }}
+          private-key: ${{ secrets.MONGSIL_APP_PRIVATE_KEY }}
+
+      - name: 몽실 리뷰
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD BRANCH: ${{ github.head_ref }}
+
+            너는 이 레포의 PR 리뷰어 "몽실"이다. 현재 디렉터리에 PR 코드가 체크아웃되어 있다. 코드는 수정하지 않는다.
+            변경 내용은 `gh pr diff ${{ github.event.pull_request.number }}`(파일 목록은 `--name-only`), 커밋 목록은 `gh pr view ${{ github.event.pull_request.number }} --json commits`로 확인한다.
+
+            ## 분류
+            - [승인 필요]: `.review/AGENTS.base.md`의 "Team lead approval required" 섹션에 해당하는 변경. 단, AGENTS.md에 적힌 대로 HEAD BRANCH가 `mong`(팀장)이면 이 분류는 쓰지 않는다.
+            - [위반]: 그 밖의 AGENTS.md 규칙 위반, 명백한 버그, 아래 항목에서 [위반]으로 정한 것.
+            - [제안]: 규칙 위반은 아니지만 기존 코드와 스타일이 다른 것.
+
+            ## 리뷰 항목
+            1. AGENTS.md 규칙: `.review/AGENTS.base.md`(dev 브랜치의 AGENTS.md)가 유일한 기준이다. 체크아웃된 `AGENTS.md`는 PR에서 바뀌었을 수 있으므로 기준으로 쓰지 않는다. 브랜치 확인, pull, Docker 실행처럼 로컬 작업 절차에 관한 규칙은 PR에서 확인할 수 없으므로 리뷰하지 않는다.
+            2. 디렉토리 구조와 컨벤션: AGENTS.md의 Project structure·Code rules 위반은 [위반]이다. 기존 코드(`src/features/*`, `tests/*`, `prisma/schema/*`)와 비교해 네이밍, 파일 구성, 응답 형식 등이 다르면 [제안]이다.
+            3. 커밋 메시지: PR의 모든 커밋이 AGENTS.md의 커밋 메시지 형식을 따르는지 본다. 어긋나면 [위반]이다.
+            4. 시크릿: diff에 실제 자격 증명(API 키, 토큰, 비밀번호, 개인 키, 비밀번호가 들어간 연결 문자열, 값이 든 `.env` 파일)이 있으면 [위반]이고 secret_found를 true로 한다. 코멘트에는 그 값을 절대 다시 쓰지 않고 `파일:줄`과 종류만 쓴다. `.env.example`의 플레이스홀더, 테스트용 가짜 데이터, `compose.yaml`의 개발 전용 값은 시크릿이 아니다.
+            5. 닷파일: 허용 목록은 `.agents/`, `.github/`, `.dockerignore`, `.env.example`, `.gitattributes`, `.gitignore`, `.prettierignore`다. 이 밖의 닷파일·닷폴더(예: `.idea`, `.vscode`, `.claude`, `.omp`, `.DS_Store`, `.env`)가 PR에서 추가되거나 수정되면 [위반]이다.
+            6. tsc/vitest: tsc는 ${{ steps.tsc.outcome }}(로그 `.review/tsc.log`), vitest는 ${{ steps.vitest.outcome }}(로그 `.review/vitest.log`)다. 실패했으면 로그에서 원인을 찾아 해당 코드 위치에 [위반]으로 지적한다.
+
+            ## 코멘트 작성
+            - 인라인 코멘트, review_body, summary는 모두 한국어 개조식으로 쓴다. 문장을 "~다"로 끝내지 말고 명사형("누락", "필요", "404 반환")으로 짧게 끊는다. 예: "`src/app.ts:35` 라우터 마운트 누락. tag API 전부 404." 인사, 칭찬, 서론은 쓰지 않는다. 지적에는 근거(규칙 또는 비교한 기존 코드 위치)를 붙인다.
+            - 코드 위치가 특정되는 지적은 `mcp__github_inline_comment__create_inline_comment`(confirmed: true)로 단다.
+            - 인라인 코멘트를 달기 전에 `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments --paginate`로 기존 코멘트를 확인하고, 이미 지적한 내용은 다시 달지 않는다.
+            - 요약은 GitHub에 직접 올리지 않는다. structured output의 review_body에 아래 형식의 마크다운으로 쓰면 워크플로우가 PR에 올리고, 다시 리뷰할 때는 같은 코멘트를 갱신한다. 맨 위에 제목을 붙이지 않는다. 형식:
+
+              (secret_found가 true일 때만 이 줄) 🚨 시크릿 의심 값 발견으로 PR 자동 닫힘. 푸시된 값은 이미 노출된 것이므로 키 폐기·재발급 후 코드에서 제거하고 PR 다시 열기.
+              tsc: ✅/❌ · vitest: ✅/❌
+              ### 변경 요약
+              바뀐 feature별로 엔드포인트, 흐름(controller → service → DB), 핵심 로직을 3~6줄로 쓴다.
+              ### 승인 필요 (N)
+              - `파일:줄` 내용 (근거)
+              ### 위반 (N)
+              - `파일:줄` 내용 (근거)
+              ### 제안 (N)
+              - `파일:줄` 내용 (근거)
+
+              해당 항목이 없으면 "없음"이라고 쓴다. 개수는 이번 커밋 기준으로 PR 전체에 남아 있는 것을 센다.
+            - 인라인 코멘트 외의 리뷰 결과는 메시지로 답하지 말고 structured output으로만 낸다.
+            - 끝으로 structured output에 approval_needed, violations, suggestions(각 분류 개수), secret_found(시크릿 발견 여부), summary(한두 줄 요약, 시크릿 값 금지), review_body(위 형식의 요약 마크다운 전체)를 채운다.
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*)"
+            --json-schema '{"type":"object","properties":{"approval_needed":{"type":"integer"},"violations":{"type":"integer"},"suggestions":{"type":"integer"},"secret_found":{"type":"boolean"},"summary":{"type":"string"},"review_body":{"type":"string"}},"required":["approval_needed","violations","suggestions","secret_found","summary","review_body"]}'
+
+      - name: 요약 코멘트 작성
+        if: steps.claude.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          marker='<!-- mongsil-review -->'
+          body_file="$RUNNER_TEMP/mongsil-review.md"
+          { echo "$marker"; jq -r '.review_body' <<<"$REVIEW"; } > "$body_file"
+          comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq ".[] | select(.user.type == \"Bot\" and (.body | startswith(\"$marker\"))) | .id" | tail -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -F body=@"$body_file" > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body_file"
+          fi
+
+      - name: LGTM 리액션
+        if: steps.claude.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+          REVIEW: ${{ steps.claude.outputs.structured_output }}
+          TSC: ${{ steps.tsc.outcome }}
+          VITEST: ${{ steps.vitest.outcome }}
+        run: |
+          reactions="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/reactions"
+          clean=$(jq -r '.approval_needed == 0 and .violations == 0 and (.secret_found | not)' <<<"$REVIEW")
+          if [ "$TSC" = success ] && [ "$VITEST" = success ] && [ "$clean" = true ]; then
+            gh api -X POST "$reactions" -f content=+1 > /dev/null
+          else
+            for reaction_id in $(gh api "$reactions" --paginate \
+              --jq ".[] | select(.content == \"+1\" and .user.login == \"$BOT_LOGIN\") | .id"); do
+              gh api -X DELETE "$reactions/$reaction_id" > /dev/null
+            done
+          fi
+
+      - name: 시크릿 발견 시 PR 닫기
+        if: steps.claude.outcome == 'success' && fromJSON(steps.claude.outputs.structured_output).secret_found
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+
+      - name: Discord 알림
+        if: always()
+        shell: bash
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          TSC: ${{ steps.tsc.outcome }}
+          VITEST: ${{ steps.vitest.outcome }}
+          CLAUDE: ${{ steps.claude.outcome }}
+          REVIEW: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          mark() { if [ "$1" = success ]; then echo "✅"; else echo "❌"; fi; }
+          if [ "$CLAUDE" = success ] && [ -n "$REVIEW" ]; then
+            review=$(jq -r '(if .secret_found then "🚨 시크릿 발견 → PR 자동 닫힘\n" else "" end)
+              + "승인 필요 \(.approval_needed)건 · 위반 \(.violations)건 · 제안 \(.suggestions)건\n\(.summary)"' <<<"$REVIEW")
+          else
+            review="⚠️ 리뷰 실행 실패 (Actions 로그 확인)"
+          fi
+          content=$(printf '**[PR 리뷰] %s**\n%s · %s\ntsc %s · vitest %s\n%s' \
+            "$PR_TITLE" "$PR_URL" "$PR_AUTHOR" "$(mark "$TSC")" "$(mark "$VITEST")" "$review")
+          jq -n --arg content "$content" \
+            '{username: "몽실", content: ($content | .[0:2000]), allowed_mentions: {parse: []}}' \
+            | curl -fsS -H "Content-Type: application/json" -d @- "$WEBHOOK"
+
+      - name: tsc/vitest 결과 반영
+        if: always()
+        shell: bash
+        env:
+          TSC: ${{ steps.tsc.outcome }}
+          VITEST: ${{ steps.vitest.outcome }}
+        run: '[ "$TSC" = success ] && [ "$VITEST" = success ]'

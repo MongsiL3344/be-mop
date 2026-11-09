@@ -9,3 +9,4 @@ dist/
 .specify
 .vitest
 reports/
+.claude
