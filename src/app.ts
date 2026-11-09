@@ -32,5 +32,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/users", userRouter);
+app.use("/tags", tagRouter);
+app.use("/notifications", notificationRouter);
 
 app.use(errorHandler);
