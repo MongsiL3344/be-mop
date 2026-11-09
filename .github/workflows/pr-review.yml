@@ -109,13 +109,12 @@ jobs:
             6. tsc/vitest: tsc는 ${{ steps.tsc.outcome }}(로그 `.review/tsc.log`), vitest는 ${{ steps.vitest.outcome }}(로그 `.review/vitest.log`)다. 실패했으면 로그에서 원인을 찾아 해당 코드 위치에 [위반]으로 지적한다.
 
             ## 코멘트 작성
-            - 한국어로 짧고 건조하게 쓴다. 인사, 칭찬, 서론은 쓰지 않는다. 지적에는 근거(규칙 또는 비교한 기존 코드 위치)를 붙인다.
+            - 인라인 코멘트, review_body, summary는 모두 한국어 개조식으로 쓴다. 문장을 "~다"로 끝내지 말고 명사형("누락", "필요", "404 반환")으로 짧게 끊는다. 예: "`src/app.ts:35` 라우터 마운트 누락. tag API 전부 404." 인사, 칭찬, 서론은 쓰지 않는다. 지적에는 근거(규칙 또는 비교한 기존 코드 위치)를 붙인다.
             - 코드 위치가 특정되는 지적은 `mcp__github_inline_comment__create_inline_comment`(confirmed: true)로 단다.
             - 인라인 코멘트를 달기 전에 `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments --paginate`로 기존 코멘트를 확인하고, 이미 지적한 내용은 다시 달지 않는다.
-            - 요약은 GitHub에 직접 올리지 않는다. structured output의 review_body에 아래 형식의 마크다운으로 쓰면 워크플로우가 PR에 올리고, 다시 리뷰할 때는 같은 코멘트를 갱신한다. 형식:
+            - 요약은 GitHub에 직접 올리지 않는다. structured output의 review_body에 아래 형식의 마크다운으로 쓰면 워크플로우가 PR에 올리고, 다시 리뷰할 때는 같은 코멘트를 갱신한다. 맨 위에 제목을 붙이지 않는다. 형식:
 
-              ## 몽실 리뷰
-              (secret_found가 true일 때만 이 줄) 🚨 시크릿으로 보이는 값이 있어 이 PR은 자동으로 닫힌다. 이미 푸시된 값은 노출된 것이므로 해당 키를 폐기·재발급하고, 코드에서 제거한 뒤 PR을 다시 연다.
+              (secret_found가 true일 때만 이 줄) 🚨 시크릿 의심 값 발견으로 PR 자동 닫힘. 푸시된 값은 이미 노출된 것이므로 키 폐기·재발급 후 코드에서 제거하고 PR 다시 열기.
               tsc: ✅/❌ · vitest: ✅/❌
               ### 변경 요약
               바뀐 feature별로 엔드포인트, 흐름(controller → service → DB), 핵심 로직을 3~6줄로 쓴다.
@@ -150,6 +149,28 @@ jobs:
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -F body=@"$body_file" > /dev/null
           else
             gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body_file"
+          fi
+
+      - name: LGTM 리액션
+        if: steps.claude.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+          REVIEW: ${{ steps.claude.outputs.structured_output }}
+          TSC: ${{ steps.tsc.outcome }}
+          VITEST: ${{ steps.vitest.outcome }}
+        run: |
+          reactions="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/reactions"
+          clean=$(jq -r '.approval_needed == 0 and .violations == 0 and (.secret_found | not)' <<<"$REVIEW")
+          if [ "$TSC" = success ] && [ "$VITEST" = success ] && [ "$clean" = true ]; then
+            gh api -X POST "$reactions" -f content=+1 > /dev/null
+          else
+            for reaction_id in $(gh api "$reactions" --paginate \
+              --jq ".[] | select(.content == \"+1\" and .user.login == \"$BOT_LOGIN\") | .id"); do
+              gh api -X DELETE "$reactions/$reaction_id" > /dev/null
+            done
           fi
 
       - name: 시크릿 발견 시 PR 닫기
