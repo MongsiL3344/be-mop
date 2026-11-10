@@ -15,7 +15,31 @@ model User {
   deletedAt    DateTime? @map("deleted_at")
 
   notifications Notification[]
+  techStacks    UserTechStack[]
+  positions     UserPosition[]
 
   @@unique([email], where: { deletedAt: null })
   @@unique([nickname], where: { deletedAt: null })
+}
+
+// 유저-기술 스택 연결. 유저나 기술 스택이 삭제되면 연결도 함께 삭제(tag 스펙 FR-007)
+model UserTechStack {
+  userId      String @map("user_id")
+  techStackId String @map("tech_stack_id")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  techStack TechStack @relation(fields: [techStackId], references: [id], onDelete: Cascade)
+
+  @@id([userId, techStackId])
+}
+
+// 유저-포지션 연결. 유저나 포지션이 삭제되면 연결도 함께 삭제(tag 스펙 FR-007)
+model UserPosition {
+  userId     String @map("user_id")
+  positionId String @map("position_id")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, positionId])
 }

@@ -3,9 +3,13 @@
 model TechStack {
   id   String @id @default(uuid())
   name String
+
+  users UserTechStack[]
 }
 
 model Position {
   id   String @id @default(uuid())
   name String
+
+  users UserPosition[]
 }
