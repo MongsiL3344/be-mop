@@ -1,6 +1,6 @@
 # Feature Specification: 회원가입·로그인·세션 인증 (auth)
 
-**Feature Branch**: `001-auth`
+**Feature Branch**: `auth`
 
 **Created**: 2026-11-02
 
