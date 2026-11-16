@@ -51,3 +51,7 @@ export const createProjectSchema = z.object({
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
+export const projectIdParamSchema = z.object({
+  id: z.uuid(),
+});
