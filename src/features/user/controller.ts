@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { promisify } from "node:util";
 import { requireLogin } from "../../lib/auth.js";
-import { loginSchema, signupSchema } from "./dto/request.js";
-import { login, me, signup } from "./service.js";
+import { loginSchema, signupSchema, userIdParamSchema } from "./dto/request.js";
+import { getProfile, login, me, signup } from "./service.js";
 
 export const userRouter = Router();
 
@@ -25,4 +25,10 @@ userRouter.post("/logout", async (req, res) => {
 
 userRouter.get("/me", requireLogin, async (req, res) => {
   res.json(await me(req.userId));
+});
+
+// GET /me보다 아래에 둬야 "me"가 :id로 잡히지 않는다
+userRouter.get("/:id", async (req, res) => {
+  const { id } = userIdParamSchema.parse(req.params);
+  res.json(await getProfile(id));
 });

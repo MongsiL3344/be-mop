@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../lib/db.js";
 import { httpError } from "../../lib/errors.js";
+import { byNameIgnoringCase } from "../../lib/sort.js";
 import type { CreateTagInput, UpdateTagInput } from "./dto/request.js";
 
 // 이름 중복(대소문자 무시 고유 인덱스 위반) → 409, 수정·삭제 대상 없음 → 404
@@ -14,13 +15,6 @@ const toTagHttpError = async <T>(query: () => Promise<T>) => {
     }
     throw err;
   }
-};
-
-// 대소문자를 무시한 이름 오름차순. 그 외에는 문자 코드 순서(영문이 한글보다 앞)
-const byNameIgnoringCase = (a: { name: string }, b: { name: string }) => {
-  const x = a.name.toLowerCase();
-  const y = b.name.toLowerCase();
-  return x < y ? -1 : x > y ? 1 : 0;
 };
 
 export const listTechStacks = async () => {
