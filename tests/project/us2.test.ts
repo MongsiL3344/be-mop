@@ -46,7 +46,7 @@ const position = (name: string) => prisma.position.create({ data: { name } });
 
 /**
  * 생성 기능을 거친 것처럼 저장소에 프로젝트를 직접 넣는다:
- * 프로젝트, 프로젝트 포지션(마스터 이름 복사), 기술 스택 연결, 포지션 없는 팀장 기록
+ * 프로젝트, 프로젝트 포지션(이름은 마스터 포지션에서 가져옴), 기술 스택 연결, 포지션 없는 팀장 기록
  */
 const seedProject = async (
   leaderId: string,
@@ -66,11 +66,7 @@ const seedProject = async (
       meetingType: "ONLINE",
       techStacks: { create: (options.techStacks ?? []).map((t) => ({ techStackId: t.id })) },
       positions: {
-        create: (options.positions ?? []).map((p) => ({
-          positionId: p.position.id,
-          name: p.position.name,
-          capacity: p.capacity,
-        })),
+        create: (options.positions ?? []).map((p) => ({ positionId: p.position.id, capacity: p.capacity })),
       },
       members: { create: { userId: leaderId, role: "LEADER" } },
     },
@@ -125,7 +121,7 @@ describe("US2 프로젝트 상세를 조회한다", () => {
         leader: { id: user.id, nickname: "leader" },
         techStacks: [{ id: react.id, name: "React" }],
         positions: [
-          { id: await projectPositionId(project.id, backend.id), positionId: backend.id, name: "백엔드", capacity: 3 },
+          { id: await projectPositionId(project.id, backend.id), position: { id: backend.id, name: "백엔드" }, capacity: 3 },
         ],
         createdAt: project.createdAt.toISOString(),
         updatedAt: project.updatedAt.toISOString(),
@@ -213,39 +209,34 @@ describe("US2 프로젝트 상세를 조회한다", () => {
         { id: typescript.id, name: "TypeScript" },
       ]);
       expect(res.body.positions).toEqual([
-        { id: await projectPositionId(project.id, devops.id), positionId: devops.id, name: "devops", capacity: 20 },
-        { id: await projectPositionId(project.id, frontend.id), positionId: frontend.id, name: "Frontend", capacity: 3 },
-        { id: await projectPositionId(project.id, designer.id), positionId: designer.id, name: "디자이너", capacity: 1 },
-        { id: await projectPositionId(project.id, backend.id), positionId: backend.id, name: "백엔드", capacity: 2 },
+        { id: await projectPositionId(project.id, devops.id), position: { id: devops.id, name: "devops" }, capacity: 20 },
+        { id: await projectPositionId(project.id, frontend.id), position: { id: frontend.id, name: "Frontend" }, capacity: 3 },
+        { id: await projectPositionId(project.id, designer.id), position: { id: designer.id, name: "디자이너" }, capacity: 1 },
+        { id: await projectPositionId(project.id, backend.id), position: { id: backend.id, name: "백엔드" }, capacity: 2 },
       ]);
       // 저장 상태: 포지션 4개·연결 4개 그대로
       expect(await prisma.projectPosition.count({ where: { projectId: project.id } })).toBe(4);
       expect(await prisma.projectTechStack.count({ where: { projectId: project.id } })).toBe(4);
     });
 
-    it("마스터 포지션 이름이 생성 뒤 바뀌었을 때 팀장이 상세를 조회하면 포지션 이름은 프로젝트 포지션에 복사된 이름으로 오고 그 이름 기준으로 정렬된다", async () => {
-      const alpha = await position("Alpha");
-      const beta = await position("beta");
+    it("Given 팀장으로 로그인한 상태이고 포지션 `백엔드`가 있는 프로젝트가 있을 때, When 관리자가 그 마스터 포지션 이름을 `서버`로 바꾼 뒤 팀장이 상세를 조회하면, Then 200과 함께 그 포지션의 `position.name`이 `서버`로 오고 프로젝트 포지션 기록(id, project_id, position_id, capacity)은 바뀌지 않는다.", async () => {
+      const backend = await position("백엔드");
       const { agent, user } = await loginAs("leader");
-      const project = await seedProject(user.id, {
-        positions: [
-          { position: alpha, capacity: 1 },
-          { position: beta, capacity: 2 },
-        ],
-      });
-      // 관리자가 마스터 이름을 바꾼 것처럼: 마스터 이름 기준이면 순서가 뒤집힌다
-      await prisma.position.update({ where: { id: alpha.id }, data: { name: "zeta" } });
+      const project = await seedProject(user.id, { positions: [{ position: backend, capacity: 3 }] });
+      const before = await prisma.projectPosition.findMany({ orderBy: { id: "asc" } });
+      // 관리자가 마스터 포지션 이름을 바꾼 것처럼
+      await prisma.position.update({ where: { id: backend.id }, data: { name: "서버" } });
 
       const res = await agent.get(detailPath(project.id));
 
       expect(res.status).toBe(200);
       expect(res.body.positions).toEqual([
-        { id: await projectPositionId(project.id, alpha.id), positionId: alpha.id, name: "Alpha", capacity: 1 },
-        { id: await projectPositionId(project.id, beta.id), positionId: beta.id, name: "beta", capacity: 2 },
+        { id: before[0]?.id, position: { id: backend.id, name: "서버" }, capacity: 3 },
       ]);
-      expect(
-        (await prisma.projectPosition.findFirstOrThrow({ where: { projectId: project.id, positionId: alpha.id } })).name,
-      ).toBe("Alpha");
+      // 프로젝트 포지션 기록은 그대로, 마스터 이름만 바뀌었다
+      expect(await prisma.projectPosition.findMany({ orderBy: { id: "asc" } })).toEqual(before);
+      expect(before).toEqual([{ id: before[0]?.id, projectId: project.id, positionId: backend.id, capacity: 3 }]);
+      expect((await prisma.position.findUniqueOrThrow({ where: { id: backend.id } })).name).toBe("서버");
     });
   });
 
@@ -294,7 +285,7 @@ describe("US2 프로젝트 상세를 조회한다", () => {
       expect(memberRes.status).toBe(200);
       expect(memberRes.body).toEqual(leaderRes.body);
       expect(memberRes.body.positions).toEqual([
-        { id: frontendPositionId, positionId: frontend.id, name: "프론트엔드", capacity: 2 },
+        { id: frontendPositionId, position: { id: frontend.id, name: "프론트엔드" }, capacity: 2 },
       ]);
       expect(await prisma.projectMember.count({ where: { projectId: project.id, leftAt: null } })).toBe(2);
     });
@@ -326,7 +317,7 @@ describe("US2 프로젝트 상세를 조회한다", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.positions).toEqual([
-        { id: backendPositionId, positionId: backend.id, name: "백엔드", capacity: 1 },
+        { id: backendPositionId, position: { id: backend.id, name: "백엔드" }, capacity: 1 },
       ]);
       expect(
         await prisma.projectMember.findFirstOrThrow({ where: { projectId: project.id, userId: member.user.id } }),

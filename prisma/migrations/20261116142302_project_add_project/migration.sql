@@ -26,7 +26,6 @@ CREATE TABLE "ProjectPosition" (
     "id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "position_id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
     "capacity" INTEGER NOT NULL,
 
     CONSTRAINT "ProjectPosition_pkey" PRIMARY KEY ("id")

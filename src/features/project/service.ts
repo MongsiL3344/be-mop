@@ -21,7 +21,7 @@ const projectDetailSelect = {
   meetingType: true,
   leader: { select: { id: true, nickname: true } },
   techStacks: { select: { techStack: { select: { id: true, name: true } } } },
-  positions: { select: { id: true, positionId: true, name: true, capacity: true } },
+  positions: { select: { id: true, capacity: true, position: { select: { id: true, name: true } } } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ProjectSelect;
@@ -34,11 +34,11 @@ const toProjectDetail = ({
 }: Prisma.ProjectGetPayload<{ select: typeof projectDetailSelect }>) => ({
   ...project,
   techStacks: techStacks.map((link) => link.techStack).sort(byNameIgnoringCase),
-  positions: positions.sort(byNameIgnoringCase),
+  positions: positions.sort((a, b) => byNameIgnoringCase(a.position, b.position)),
 });
 
 /**
- * 프로젝트, 프로젝트 포지션(마스터 이름 복사), 기술 스택 연결, 포지션 없는 팀장 기록을 한 번에 저장하고 상세(FR-008)를 돌려준다.
+ * 프로젝트, 프로젝트 포지션(이름은 마스터 포지션에서 가져옴), 기술 스택 연결, 포지션 없는 팀장 기록을 한 번에 저장하고 상세(FR-008)를 돌려준다.
  * 없는 태그가 섞여 있으면(확인 뒤 동시에 삭제된 경우 포함) 400이며 아무것도 저장하지 않는다
  */
 export const createProject = async (
@@ -48,15 +48,10 @@ export const createProject = async (
   const techStackCount = await prisma.techStack.count({ where: { id: { in: techStackIds } } });
   if (techStackCount !== techStackIds.length) throw httpError(400, TAG_NOT_FOUND);
 
-  const masterPositions = await prisma.position.findMany({
+  const positionCount = await prisma.position.count({
     where: { id: { in: positions.map((p) => p.positionId) } },
-    select: { id: true, name: true },
   });
-  const projectPositions = positions.map(({ positionId, capacity }) => {
-    const master = masterPositions.find((p) => p.id === positionId);
-    if (!master) throw httpError(400, TAG_NOT_FOUND);
-    return { positionId, name: master.name, capacity };
-  });
+  if (positionCount !== positions.length) throw httpError(400, TAG_NOT_FOUND);
 
   try {
     const project = await prisma.project.create({
@@ -67,7 +62,9 @@ export const createProject = async (
         duration,
         meetingType,
         techStacks: { create: techStackIds.map((techStackId) => ({ techStackId })) },
-        positions: { create: projectPositions },
+        positions: {
+          create: positions.map(({ positionId, capacity }) => ({ positionId, capacity })),
+        },
         members: { create: { userId: leaderId, role: "LEADER" } },
       },
       select: projectDetailSelect,
@@ -98,4 +95,25 @@ export const getProject = async (userId: string, projectId: string) => {
   const { members, ...detail } = project;
   if (members.length === 0) throw httpError(403, "프로젝트 팀원만 볼 수 있습니다");
   return toProjectDetail(detail);
+};
+
+/**
+ * 내 현재 팀원 기록(팀장 포함, 탈퇴·제외 안 됨)이 있는 프로젝트를 생성 시각 내림차순으로,
+ * 각 상세에 내 역할 myRole을 더해 돌려준다
+ */
+export const listMyProjects = async (userId: string) => {
+  const projects = await prisma.project.findMany({
+    where: { members: { some: { userId, leftAt: null } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      ...projectDetailSelect,
+      members: { where: { userId, leftAt: null }, select: { role: true } },
+    },
+  });
+  return {
+    items: projects.map(({ members, ...detail }) => ({
+      ...toProjectDetail(detail),
+      myRole: members[0]!.role, // ! 연산자 허용
+    })),
+  };
 };

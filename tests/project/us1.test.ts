@@ -129,8 +129,8 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
         ],
         // 대소문자 무시 이름 오름차순: 백엔드 < 프론트엔드
         positions: [
-          { id: expect.stringMatching(UUID), positionId: fx.backend.id, name: "백엔드", capacity: 1 },
-          { id: expect.stringMatching(UUID), positionId: fx.frontend.id, name: "프론트엔드", capacity: 2 },
+          { id: expect.stringMatching(UUID), position: { id: fx.backend.id, name: "백엔드" }, capacity: 1 },
+          { id: expect.stringMatching(UUID), position: { id: fx.frontend.id, name: "프론트엔드" }, capacity: 2 },
         ],
         createdAt: expect.stringMatching(ISO),
         updatedAt: expect.stringMatching(ISO),
@@ -149,11 +149,11 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       });
       expect(res.body).toMatchObject(await expectedDetail(res.body.id));
 
-      // 프로젝트 포지션 2개: 이름은 마스터 포지션 이름 복사, 정원 2·1, 응답의 id와 같은 식별자
+      // 프로젝트 포지션 2개: 마스터 포지션을 position_id로 참조, 정원 2·1, 응답의 id와 같은 식별자
       const projectPositions = await prisma.projectPosition.findMany({ orderBy: { capacity: "asc" } });
       expect(projectPositions).toEqual([
-        { id: res.body.positions[0].id, projectId: res.body.id, positionId: fx.backend.id, name: "백엔드", capacity: 1 },
-        { id: res.body.positions[1].id, projectId: res.body.id, positionId: fx.frontend.id, name: "프론트엔드", capacity: 2 },
+        { id: res.body.positions[0].id, projectId: res.body.id, positionId: fx.backend.id, capacity: 1 },
+        { id: res.body.positions[1].id, projectId: res.body.id, positionId: fx.frontend.id, capacity: 2 },
       ]);
 
       // 기술 스택 연결 2개
@@ -260,18 +260,6 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       const members = await prisma.projectMember.findMany();
       expect(members).toHaveLength(1);
       expect(members[0]).toMatchObject({ userId: user.id, role: "LEADER" });
-    });
-
-    it("로그인했고 태그가 있을 때 만든 뒤 관리자가 마스터 포지션 이름을 바꿔도 프로젝트 포지션 이름은 생성 시점에 복사한 이름 그대로다", async () => {
-      const fx = await seedTags();
-      const { agent } = await loginAs();
-
-      const res = await agent.post(PROJECTS).send(validBody(fx));
-      expect(res.status).toBe(201);
-      await prisma.position.update({ where: { id: fx.backend.id }, data: { name: "서버" } });
-
-      const backend = await prisma.projectPosition.findFirst({ where: { positionId: fx.backend.id } });
-      expect(backend).toMatchObject({ projectId: res.body.id, name: "백엔드", capacity: 1 });
     });
 
     it("로그인했고 태그가 있을 때 응답의 팀장 정보에는 id·nickname만 있고 이메일·역할 등 다른 사용자 정보와 팀원 목록은 담기지 않는다", async () => {
@@ -497,7 +485,7 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
         meetingType: "OFFLINE",
         leader: { id: user.id, nickname: "leader" },
         techStacks: [{ id: fx.react.id, name: "React" }],
-        positions: [{ id: expect.stringMatching(UUID), positionId: fx.backend.id, name: "백엔드", capacity: 3 }],
+        positions: [{ id: expect.stringMatching(UUID), position: { id: fx.backend.id, name: "백엔드" }, capacity: 3 }],
       });
 
       const projects = await prisma.project.findMany({ orderBy: { createdAt: "asc" } });

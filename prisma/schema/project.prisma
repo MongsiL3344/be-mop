@@ -31,12 +31,11 @@ model Project {
   members    ProjectMember[]
 }
 
-// 프로젝트 포지션. 이름은 생성 시 마스터 포지션 이름 복사, 마스터 포지션이 삭제되면 함께 삭제(FR-010)
+// 프로젝트 포지션. 이름은 마스터 포지션(position_id)에서 가져옴, 마스터 포지션이 삭제되면 함께 삭제(FR-010)
 model ProjectPosition {
   id         String @id @default(uuid())
   projectId  String @map("project_id")
   positionId String @map("position_id")
-  name       String
   capacity   Int
 
   project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
