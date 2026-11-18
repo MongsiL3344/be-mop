@@ -6,6 +6,7 @@ import { checkOrigin } from "./lib/origin.js";
 import { userRouter } from "./features/user/controller.js";
 import { tagRouter } from "./features/tag/controller.js";
 import { notificationRouter } from "./features/notification/controller.js";
+import { projectRouter } from "./features/project/controller.js";
 
 export const CLIENT_ORIGIN = process.env["CLIENT_ORIGIN"] ?? "http://localhost:3000";
 
@@ -34,5 +35,6 @@ app.get("/health", (_req, res) => {
 app.use("/users", userRouter);
 app.use("/tags", tagRouter);
 app.use("/notifications", notificationRouter);
+app.use("/projects", projectRouter);
 
 app.use(errorHandler);

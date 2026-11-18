@@ -5,6 +5,7 @@ model TechStack {
   name String
 
   users UserTechStack[]
+  projects ProjectTechStack[]
 }
 
 model Position {
@@ -12,4 +13,5 @@ model Position {
   name String
 
   users UserPosition[]
+  projectPositions ProjectPosition[]
 }

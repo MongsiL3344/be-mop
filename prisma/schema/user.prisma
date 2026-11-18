@@ -17,6 +17,8 @@ model User {
   notifications Notification[]
   techStacks    UserTechStack[]
   positions     UserPosition[]
+  leadingProjects Project[]
+  projectMembers  ProjectMember[]
 
   @@unique([email], where: { deletedAt: null })
   @@unique([nickname], where: { deletedAt: null })

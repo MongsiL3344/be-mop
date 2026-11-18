@@ -31,6 +31,9 @@ Otherwise, stop, explain what you need and why, and wait until the user confirms
 
 ## Verification
 - After every code change, run `npx tsc --noEmit` (checks `src/` and `tests/`) and `npx vitest run tests/<feature>` (on the host or in the container). Work is not done while either reports errors or failures.
+- When the change adds or changes an API endpoint, after `tsc` and `vitest` pass, also start the server and send real HTTP requests to the changed endpoints with `curl`: the success case and each error status the spec defines for them (e.g. 400, 401, 403, 404, 409). Compare every status code and response body with the spec, and check the DB rows afterward.
+  - Run the server against the test DB so the development DB is not touched: on the host `DATABASE_URL=<TEST_DATABASE_URL> npm run dev` and send requests to `localhost:8080`. If `localhost` ports are unreachable from your shell, run it in a container instead, `docker compose run -d --name api-check --no-deps -e DATABASE_URL=postgresql://mop:mop@db-test:5432/mop_test api npm run dev`, and send `curl` from a container on the same compose network (e.g. `docker run --rm --network be-mop_default curlimages/curl http://api-check:8080/health`); remove it with `docker rm -f api-check` when done.
+  - Keep request scripts out of the repository, and stop the server you started when you finish. Report each request with its expected and actual status. If a response does not match the spec, the work is not done.
 - Never silence a type error with `any`, a type cast (`as`), `!`, `@ts-ignore`, or `@ts-expect-error`. If you cannot fix it properly, show the error as-is and stop.
 - If a command itself fails (database not running, module not found), do not install anything beyond the `npm ci` sync described under Docker; show the error to the user.
 

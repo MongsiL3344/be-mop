@@ -24,8 +24,8 @@
 
 ## 요구사항 일관성
 
-- [x] CHK009 001-auth의 "관리자 전용은 추가에 적용" 메모와 이 스펙의 추가·수정·삭제 관리자 전용 요구가 어긋나지 않는가? [Consistency, Spec §FR-010, §Clarifications] — 근거: Clarifications 2026-11-07(추가·수정도 ADMIN만, 001-auth 메모를 확장)
-- [x] CHK010 관리자 전용 보호의 401 메시지가 001-auth 로그인 필수 보호의 401과 같은 기준인가? [Consistency, Spec §FR-009] — 근거: FR-009(로그인 필수 보호와 같은 401), Edge Cases(탈퇴 관리자 401)
+- [x] CHK009 auth의 "관리자 전용은 추가에 적용" 메모와 이 스펙의 추가·수정·삭제 관리자 전용 요구가 어긋나지 않는가? [Consistency, Spec §FR-010, §Clarifications] — 근거: Clarifications 2026-11-07(추가·수정도 ADMIN만, auth 메모를 확장)
+- [x] CHK010 관리자 전용 보호의 401 메시지가 auth 로그인 필수 보호의 401과 같은 기준인가? [Consistency, Spec §FR-009] — 근거: FR-009(로그인 필수 보호와 같은 401), Edge Cases(탈퇴 관리자 401)
 - [x] CHK011 기술 스택과 포지션의 규칙(이름 규칙·권한·응답)이 두 종류에서 동일하게 적용되는가? [Consistency, Spec §FR-001~§FR-010] — 근거: FR-003·004·007이 "기술 스택 또는 포지션"으로 공통 정의, US1~US4 시나리오가 두 종류 모두 다룸
 
 ## 수용 기준 품질

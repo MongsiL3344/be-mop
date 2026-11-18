@@ -1,0 +1,78 @@
+enum ProjectDuration {
+  UNDER_3M
+  M3_TO_6
+  M6_TO_12
+  OVER_1Y
+}
+
+enum MeetingType {
+  OFFLINE
+  ONLINE
+}
+
+enum ProjectMemberRole {
+  LEADER
+  MEMBER
+}
+
+model Project {
+  id          String          @id @default(uuid())
+  leaderId    String          @map("leader_id")
+  name        String
+  description String?
+  duration    ProjectDuration
+  meetingType MeetingType     @map("meeting_type")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  leader     User               @relation(fields: [leaderId], references: [id])
+  positions  ProjectPosition[]
+  techStacks ProjectTechStack[]
+  members    ProjectMember[]
+}
+
+// 프로젝트 포지션. 이름은 마스터 포지션(position_id)에서 가져옴, 마스터 포지션이 삭제되면 함께 삭제(FR-010)
+model ProjectPosition {
+  id         String @id @default(uuid())
+  projectId  String @map("project_id")
+  positionId String @map("position_id")
+  capacity   Int
+
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position Position        @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  members  ProjectMember[]
+
+  // 한 프로젝트 안에서 마스터 포지션은 고유
+  @@unique([projectId, positionId])
+}
+
+// 프로젝트-기술 스택 연결. 프로젝트나 기술 스택이 삭제되면 연결도 함께 삭제(FR-009)
+model ProjectTechStack {
+  projectId   String @map("project_id")
+  techStackId String @map("tech_stack_id")
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  techStack TechStack @relation(fields: [techStackId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, techStackId])
+}
+
+// 팀원 기록. 프로젝트 포지션이 삭제되면 포지션만 없음으로 바뀜(FR-010)
+model ProjectMember {
+  id                String            @id @default(uuid())
+  projectId         String            @map("project_id")
+  userId            String            @map("user_id")
+  projectPositionId String?           @map("project_position_id")
+  role              ProjectMemberRole
+  joinedAt          DateTime          @default(now()) @map("joined_at")
+  leftAt            DateTime?         @map("left_at") // null = 현재 팀원
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id])
+  projectPosition ProjectPosition? @relation(fields: [projectPositionId], references: [id], onDelete: SetNull)
+
+  // 한 프로젝트에서 같은 사용자의 현재 팀원 기록은 하나(FR-012)
+  @@unique([projectId, userId], where: { leftAt: null })
+  // 팀장 역할의 기록은 프로젝트당 하나(FR-012)
+  @@unique([projectId], map: "ProjectMember_project_id_leader_key", where: { role: "LEADER" })
+}
