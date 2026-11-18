@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { promisify } from "node:util";
 import { requireLogin } from "../../lib/auth.js";
-import { loginSchema, signupSchema } from "./dto/request.js";
-import { login, me, signup } from "./service.js";
+import { loginSchema, signupSchema, updateProfileSchema, userIdParamSchema } from "./dto/request.js";
+import { getProfile, login, me, signup, updateProfile } from "./service.js";
 
 export const userRouter = Router();
 
@@ -25,4 +25,16 @@ userRouter.post("/logout", async (req, res) => {
 
 userRouter.get("/me", requireLogin, async (req, res) => {
   res.json(await me(req.userId));
+});
+
+// 내 프로필 수정. 보낸 필드만 바뀌고 응답은 GET /users/:id와 같은 형태
+userRouter.patch("/me", requireLogin, async (req, res) => {
+  const input = updateProfileSchema.parse(req.body);
+  res.json(await updateProfile(req.userId, input));
+});
+
+// GET /me보다 아래에 둬야 "me"가 :id로 잡히지 않는다
+userRouter.get("/:id", async (req, res) => {
+  const { id } = userIdParamSchema.parse(req.params);
+  res.json(await getProfile(id));
 });
