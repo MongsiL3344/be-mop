@@ -50,8 +50,9 @@ const seedProject = async (
   options: {
     name?: string;
     description?: string | null;
-    duration?: "UNDER_3M" | "M3_TO_6" | "M6_TO_12" | "OVER_1Y";
+    duration?: number;
     meetingType?: "OFFLINE" | "ONLINE";
+    purpose?: "CONTEST" | "PORTFOLIO" | "STARTUP";
     techStacks?: Tag[];
     positions?: { position: Tag; capacity: number }[];
     createdAt?: Date;
@@ -62,8 +63,9 @@ const seedProject = async (
       leaderId,
       name: options.name ?? "MOP",
       description: options.description === undefined ? "개발자 팀 매칭 플랫폼" : options.description,
-      duration: options.duration ?? "M3_TO_6",
+      duration: options.duration ?? 6,
       meetingType: options.meetingType ?? "ONLINE",
+      purpose: options.purpose ?? "PORTFOLIO",
       ...(options.createdAt ? { createdAt: options.createdAt } : {}),
       techStacks: { create: (options.techStacks ?? []).map((t) => ({ techStackId: t.id })) },
       positions: {
@@ -137,8 +139,9 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
       const newer = await seedProject(a.id, {
         name: "A의 두 번째",
         description: null,
-        duration: "OVER_1Y",
+        duration: 24,
         meetingType: "OFFLINE",
+        purpose: "STARTUP",
         createdAt: at(30),
       });
       const bProject = await seedProject(b.id, { name: "B의 프로젝트", createdAt: at(20) });
@@ -164,8 +167,9 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
             id: newer.id,
             name: "A의 두 번째",
             description: null,
-            duration: "OVER_1Y",
+            duration: 24,
             meetingType: "OFFLINE",
+            purpose: "STARTUP",
             leader: { id: a.id, nickname: "alice" },
             techStacks: [],
             positions: [],
@@ -177,8 +181,9 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
             id: older.id,
             name: "A의 첫 번째",
             description: "개발자 팀 매칭 플랫폼",
-            duration: "M3_TO_6",
+            duration: 6,
             meetingType: "ONLINE",
+            purpose: "PORTFOLIO",
             leader: { id: a.id, nickname: "alice" },
             techStacks: [
               { id: aws.id, name: "aws" },
@@ -215,13 +220,18 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
       const created1 = await aAgent.post(PROJECTS).send({
         name: "A의 첫 번째",
         description: "소개",
-        duration: "UNDER_3M",
+        duration: 2,
         meetingType: "ONLINE",
+        purpose: "PORTFOLIO",
         techStackIds: [react.id],
         positions: [{ positionId: backend.id, capacity: 2 }],
       });
-      const createdB = await bAgent.post(PROJECTS).send({ name: "B의 프로젝트", duration: "M6_TO_12", meetingType: "OFFLINE" });
-      const created2 = await aAgent.post(PROJECTS).send({ name: "A의 두 번째", duration: "OVER_1Y", meetingType: "OFFLINE" });
+      const createdB = await bAgent
+        .post(PROJECTS)
+        .send({ name: "B의 프로젝트", duration: 12, meetingType: "OFFLINE", purpose: "CONTEST" });
+      const created2 = await aAgent
+        .post(PROJECTS)
+        .send({ name: "A의 두 번째", duration: 24, meetingType: "OFFLINE", purpose: "STARTUP" });
       expect(created1.status).toBe(201);
       expect(createdB.status).toBe(201);
       expect(created2.status).toBe(201);
@@ -308,8 +318,9 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
             id: bProject.id,
             name: "B의 프로젝트",
             description: "개발자 팀 매칭 플랫폼",
-            duration: "M3_TO_6",
+            duration: 6,
             meetingType: "ONLINE",
+            purpose: "PORTFOLIO",
             leader: { id: b.id, nickname: "bob" },
             techStacks: [{ id: vue.id, name: "Vue" }],
             positions: [
@@ -327,8 +338,9 @@ describe("US3 내 프로젝트 목록을 조회한다", () => {
             id: own.id,
             name: "A의 프로젝트",
             description: "개발자 팀 매칭 플랫폼",
-            duration: "M3_TO_6",
+            duration: 6,
             meetingType: "ONLINE",
+            purpose: "PORTFOLIO",
             leader: { id: a.id, nickname: "alice" },
             techStacks: [],
             positions: [],

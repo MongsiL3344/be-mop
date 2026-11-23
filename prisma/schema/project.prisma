@@ -1,8 +1,7 @@
-enum ProjectDuration {
-  UNDER_3M
-  M3_TO_6
-  M6_TO_12
-  OVER_1Y
+enum ProjectPurpose {
+  CONTEST
+  PORTFOLIO
+  STARTUP
 }
 
 enum MeetingType {
@@ -20,10 +19,12 @@ model Project {
   leaderId    String          @map("leader_id")
   name        String
   description String?
-  duration    ProjectDuration
+  duration    Int // 예상 기간(개월)
   meetingType MeetingType     @map("meeting_type")
+  purpose     ProjectPurpose
   createdAt   DateTime        @default(now()) @map("created_at")
   updatedAt   DateTime        @updatedAt @map("updated_at")
+  deletedAt   DateTime?       @map("deleted_at") // null = 삭제 안 됨
 
   leader     User               @relation(fields: [leaderId], references: [id])
   positions  ProjectPosition[]

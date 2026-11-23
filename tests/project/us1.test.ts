@@ -51,8 +51,9 @@ const validBody = (fx: Fixture): Body => ({
   name: "MOP",
   description: "개발자 팀 매칭 플랫폼",
   techStackIds: [fx.react.id, fx.node.id],
-  duration: "M3_TO_6",
+  duration: 6,
   meetingType: "ONLINE",
+  purpose: "PORTFOLIO",
   positions: [
     { positionId: fx.frontend.id, capacity: 2 },
     { positionId: fx.backend.id, capacity: 1 },
@@ -90,6 +91,7 @@ const expectedDetail = async (projectId: string) => {
     description: project.description,
     duration: project.duration,
     meetingType: project.meetingType,
+    purpose: project.purpose,
     leader: { id: project.leader.id, nickname: project.leader.nickname },
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
@@ -108,7 +110,7 @@ afterAll(async () => {
 
 describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
   describe("시나리오 1: 기술 스택·포지션을 고른 프로젝트 생성 성공", () => {
-    it('로그인했고 기술 스택 "React"·"Node.js"와 포지션 "프론트엔드"·"백엔드"가 있을 때 이름 "MOP"·소개·기술 스택 2개·M3_TO_6·ONLINE·포지션 정원 2·1로 만들면 201과 FR-008 상세가 오고 프로젝트 1개·프로젝트 포지션 2개·연결 2개·포지션 없는 팀장 기록 1개가 저장된다', async () => {
+    it('로그인했고 기술 스택 "React"·"Node.js"와 포지션 "프론트엔드"·"백엔드"가 있을 때 이름 "MOP"·소개·기술 스택 2개·6개월·ONLINE·PORTFOLIO·포지션 정원 2·1로 만들면 201과 FR-008 상세가 오고 프로젝트 1개·프로젝트 포지션 2개·연결 2개·포지션 없는 팀장 기록 1개가 저장된다', async () => {
       const fx = await seedTags();
       const { agent, user } = await loginAs("leader");
 
@@ -119,8 +121,9 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
         id: expect.stringMatching(UUID),
         name: "MOP",
         description: "개발자 팀 매칭 플랫폼",
-        duration: "M3_TO_6",
+        duration: 6,
         meetingType: "ONLINE",
+        purpose: "PORTFOLIO",
         leader: { id: user.id, nickname: "leader" },
         // 대소문자 무시 이름 오름차순: Node.js < React
         techStacks: [
@@ -144,8 +147,9 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
         leaderId: user.id,
         name: "MOP",
         description: "개발자 팀 매칭 플랫폼",
-        duration: "M3_TO_6",
+        duration: 6,
         meetingType: "ONLINE",
+        purpose: "PORTFOLIO",
       });
       expect(res.body).toMatchObject(await expectedDetail(res.body.id));
 
@@ -223,14 +227,15 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       const res = await agent.post(PROJECTS).send({
         name,
         description,
-        duration: "OVER_1Y",
+        duration: 24,
         meetingType: "OFFLINE",
+        purpose: "STARTUP",
         techStackIds: techStacks.map((t) => t.id),
         positions: positions.map((p, i) => ({ positionId: p.id, capacity: i === 0 ? 1 : 20 })),
       });
 
       expect(res.status).toBe(201);
-      expect(res.body).toMatchObject({ name, description, duration: "OVER_1Y", meetingType: "OFFLINE" });
+      expect(res.body).toMatchObject({ name, description, duration: 24, meetingType: "OFFLINE", purpose: "STARTUP" });
       expect(res.body.techStacks).toHaveLength(20);
       expect(res.body.positions).toHaveLength(10);
       expect(await savedCounts()).toEqual({ projects: 1, projectPositions: 10, projectTechStacks: 20, projectMembers: 1 });
@@ -274,6 +279,22 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       expect(res.body).not.toHaveProperty("members");
       expect(await prisma.projectMember.count({ where: { projectId: res.body.id, userId: user.id } })).toBe(1);
     });
+
+    it.each([
+      ["최솟값 1", 1],
+      ["최댓값 36", 36],
+    ])("로그인했고 태그가 있을 때 예상 기간을 %s(개월)로 만들면 201이고 그 값이 숫자로 응답·저장된다", async (_label, duration) => {
+      const fx = await seedTags();
+      const { agent } = await loginAs();
+
+      const res = await agent.post(PROJECTS).send({ ...validBody(fx), duration });
+
+      expect(res.status).toBe(201);
+      expect(res.body.duration).toBe(duration);
+      const projects = await prisma.project.findMany();
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toMatchObject({ id: res.body.id, duration });
+    });
   });
 
   describe("시나리오 2: 기술 스택·포지션 없이 생성", () => {
@@ -284,15 +305,18 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       await seedTags();
       const { agent, user } = await loginAs("leader");
 
-      const res = await agent.post(PROJECTS).send({ name: "MOP", duration: "UNDER_3M", meetingType: "OFFLINE", ...lists });
+      const res = await agent
+        .post(PROJECTS)
+        .send({ name: "MOP", duration: 2, meetingType: "OFFLINE", purpose: "CONTEST", ...lists });
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({
         id: expect.stringMatching(UUID),
         name: "MOP",
         description: null,
-        duration: "UNDER_3M",
+        duration: 2,
         meetingType: "OFFLINE",
+        purpose: "CONTEST",
         leader: { id: user.id, nickname: "leader" },
         techStacks: [],
         positions: [],
@@ -300,7 +324,13 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
         updatedAt: expect.stringMatching(ISO),
       });
       expect(await savedCounts()).toEqual({ projects: 1, projectPositions: 0, projectTechStacks: 0, projectMembers: 1 });
-      expect(await prisma.project.findFirst()).toMatchObject({ id: res.body.id, leaderId: user.id, name: "MOP" });
+      expect(await prisma.project.findFirst()).toMatchObject({
+        id: res.body.id,
+        leaderId: user.id,
+        name: "MOP",
+        duration: 2,
+        purpose: "CONTEST",
+      });
       expect(await prisma.projectMember.findFirst()).toMatchObject({
         projectId: res.body.id,
         userId: user.id,
@@ -329,11 +359,18 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       ["소개에 줄바꿈·탭 외 제어문자(U+0001)", (fx) => ({ ...validBody(fx), description: "소개\u0001" })],
       ["소개 숫자", (fx) => ({ ...validBody(fx), description: 1 })],
       ["예상 기간 누락", (fx) => ({ ...validBody(fx), duration: undefined })],
-      ["예상 기간 소문자", (fx) => ({ ...validBody(fx), duration: "m3_to_6" })],
-      ["예상 기간 목록 밖 값", (fx) => ({ ...validBody(fx), duration: "M1_TO_2" })],
+      ["예상 기간 null", (fx) => ({ ...validBody(fx), duration: null })],
+      ["예상 기간 0", (fx) => ({ ...validBody(fx), duration: 0 })],
+      ["예상 기간 37", (fx) => ({ ...validBody(fx), duration: 37 })],
+      ["예상 기간 소수", (fx) => ({ ...validBody(fx), duration: 1.5 })],
+      ["예상 기간 숫자 문자열", (fx) => ({ ...validBody(fx), duration: "6" })],
+      ["예상 기간 예전 기간 구분 값", (fx) => ({ ...validBody(fx), duration: "M3_TO_6" })],
       ["회의 방식 누락", (fx) => ({ ...validBody(fx), meetingType: undefined })],
       ["회의 방식 소문자", (fx) => ({ ...validBody(fx), meetingType: "online" })],
       ["회의 방식 목록 밖 값", (fx) => ({ ...validBody(fx), meetingType: "HYBRID" })],
+      ["목적 누락", (fx) => ({ ...validBody(fx), purpose: undefined })],
+      ["목적 null", (fx) => ({ ...validBody(fx), purpose: null })],
+      ["목적 목록 밖 값", (fx) => ({ ...validBody(fx), purpose: "HOBBY" })],
       ["기술 스택 21개", (fx, many) => ({ ...validBody(fx), techStackIds: many.techStacks.map((t) => t.id) })],
       ["기술 스택 목록 null", (fx) => ({ ...validBody(fx), techStackIds: null })],
       ["기술 스택 목록에 null", (fx) => ({ ...validBody(fx), techStackIds: [fx.react.id, null] })],
@@ -470,8 +507,9 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
 
       const res = await agent.post(PROJECTS).send({
         name: "MOP",
-        duration: "M6_TO_12",
+        duration: 12,
         meetingType: "OFFLINE",
+        purpose: "STARTUP",
         techStackIds: [fx.react.id],
         positions: [{ positionId: fx.backend.id, capacity: 3 }],
       });
@@ -481,8 +519,9 @@ describe("US1 로그인한 사용자가 프로젝트를 만든다", () => {
       expect(res.body.id).not.toBe(first.body.id);
       expect(res.body).toMatchObject({
         name: "MOP",
-        duration: "M6_TO_12",
+        duration: 12,
         meetingType: "OFFLINE",
+        purpose: "STARTUP",
         leader: { id: user.id, nickname: "leader" },
         techStacks: [{ id: fx.react.id, name: "React" }],
         positions: [{ id: expect.stringMatching(UUID), position: { id: fx.backend.id, name: "백엔드" }, capacity: 3 }],

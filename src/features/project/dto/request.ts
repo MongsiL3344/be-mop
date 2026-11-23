@@ -44,8 +44,9 @@ const positionsSchema = z
 export const createProjectSchema = z.object({
   name: nameSchema,
   description: descriptionSchema,
-  duration: z.enum(["UNDER_3M", "M3_TO_6", "M6_TO_12", "OVER_1Y"]),
+  duration: z.number().int().min(1).max(36),
   meetingType: z.enum(["OFFLINE", "ONLINE"]),
+  purpose: z.enum(["CONTEST", "PORTFOLIO", "STARTUP"]),
   techStackIds: techStackIdsSchema,
   positions: positionsSchema,
 });

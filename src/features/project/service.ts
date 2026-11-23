@@ -19,6 +19,7 @@ const projectDetailSelect = {
   description: true,
   duration: true,
   meetingType: true,
+  purpose: true,
   leader: { select: { id: true, nickname: true } },
   techStacks: { select: { techStack: { select: { id: true, name: true } } } },
   positions: { select: { id: true, capacity: true, position: { select: { id: true, name: true } } } },
@@ -43,7 +44,7 @@ const toProjectDetail = ({
  */
 export const createProject = async (
   leaderId: string,
-  { name, description, duration, meetingType, techStackIds, positions }: CreateProjectInput,
+  { name, description, duration, meetingType, purpose, techStackIds, positions }: CreateProjectInput,
 ) => {
   const techStackCount = await prisma.techStack.count({ where: { id: { in: techStackIds } } });
   if (techStackCount !== techStackIds.length) throw httpError(400, TAG_NOT_FOUND);
@@ -61,6 +62,7 @@ export const createProject = async (
         description,
         duration,
         meetingType,
+        purpose,
         techStacks: { create: techStackIds.map((techStackId) => ({ techStackId })) },
         positions: {
           create: positions.map(({ positionId, capacity }) => ({ positionId, capacity })),
