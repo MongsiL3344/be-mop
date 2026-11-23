@@ -45,7 +45,7 @@ const setup = async () => {
 };
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User", "Notification" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users", "notifications" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

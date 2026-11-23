@@ -50,7 +50,7 @@ const expectUnauthorized = async (res: request.Response) => {
 };
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
 });
 
 afterEach(() => {

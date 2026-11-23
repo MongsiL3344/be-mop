@@ -63,7 +63,7 @@ export const updateProfile = async (userId: string, input: UpdateProfileInput) =
   try {
     await prisma.$transaction(async (tx) => {
       // 같은 사용자의 동시 수정을 한 줄로 세운다(연결 교체가 서로 섞이지 않게)
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`;
 
       // 태그 존재 확인(400)은 닉네임 중복(409)보다 먼저, 아무것도 쓰기 전에
       if (techStackIds && (await tx.techStack.count({ where: { id: { in: techStackIds } } })) !== techStackIds.length) {

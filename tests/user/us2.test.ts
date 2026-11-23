@@ -74,7 +74,7 @@ app.get(PROBE, (req, res) => {
 const probe = (sid: string) => request(app).get(PROBE).set("Cookie", `${SID}=${sid}`);
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

@@ -77,7 +77,7 @@ const invalidIds: [string, string][] = [
 ];
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "TechStack", "Position", "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "tech_stacks", "positions", "users" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

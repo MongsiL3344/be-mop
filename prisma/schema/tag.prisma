@@ -6,6 +6,8 @@ model TechStack {
 
   users UserTechStack[]
   projects ProjectTechStack[]
+
+  @@map("tech_stacks")
 }
 
 model Position {
@@ -14,4 +16,6 @@ model Position {
 
   users UserPosition[]
   projectPositions ProjectPosition[]
+
+  @@map("positions")
 }

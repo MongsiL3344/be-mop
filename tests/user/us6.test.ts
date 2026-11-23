@@ -50,7 +50,7 @@ const dbSnapshot = async () => ({
 });
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User", "TechStack", "Position" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users", "tech_stacks", "positions" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

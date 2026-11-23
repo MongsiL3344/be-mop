@@ -46,7 +46,7 @@ const newestFirst = <T extends { createdAt: Date }>(rows: T[]) =>
   [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User", "Notification" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users", "notifications" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

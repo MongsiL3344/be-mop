@@ -88,7 +88,7 @@ const snapshot = async () => ({
 
 beforeEach(async () => {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "ProjectMember", "ProjectPosition", "ProjectTechStack", "Project", "TechStack", "Position", "User" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "project_members", "project_positions", "project_tech_stacks", "projects", "tech_stacks", "positions", "users" RESTART IDENTITY CASCADE',
   );
 });
 

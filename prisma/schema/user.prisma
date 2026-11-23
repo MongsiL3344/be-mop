@@ -6,7 +6,7 @@ enum Role {
 model User {
   id           String    @id @default(uuid())
   email        String
-  passwordHash String
+  passwordHash String    @map("password_hash")
   nickname     String
   introduction String?
   links        String[]  @default([])
@@ -22,6 +22,7 @@ model User {
 
   @@unique([email], where: { deletedAt: null })
   @@unique([nickname], where: { deletedAt: null })
+  @@map("users")
 }
 
 // 유저-기술 스택 연결. 유저나 기술 스택이 삭제되면 연결도 함께 삭제(tag 스펙 FR-007)
@@ -33,6 +34,7 @@ model UserTechStack {
   techStack TechStack @relation(fields: [techStackId], references: [id], onDelete: Cascade)
 
   @@id([userId, techStackId])
+  @@map("user_tech_stacks")
 }
 
 // 유저-포지션 연결. 유저나 포지션이 삭제되면 연결도 함께 삭제(tag 스펙 FR-007)
@@ -44,4 +46,5 @@ model UserPosition {
   position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
 
   @@id([userId, positionId])
+  @@map("user_positions")
 }

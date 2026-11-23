@@ -18,7 +18,7 @@ const expectNoSecret = (res: request.Response, ...secrets: string[]) => {
 };
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

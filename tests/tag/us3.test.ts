@@ -75,7 +75,7 @@ const kinds = [
 const tagUrl = (path: string, id: string) => `${path}/${id}`;
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "TechStack", "Position", "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "tech_stacks", "positions", "users" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

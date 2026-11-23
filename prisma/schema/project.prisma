@@ -29,6 +29,8 @@ model Project {
   positions  ProjectPosition[]
   techStacks ProjectTechStack[]
   members    ProjectMember[]
+
+  @@map("projects")
 }
 
 // 프로젝트 포지션. 이름은 마스터 포지션(position_id)에서 가져옴, 마스터 포지션이 삭제되면 함께 삭제(FR-010)
@@ -44,6 +46,7 @@ model ProjectPosition {
 
   // 한 프로젝트 안에서 마스터 포지션은 고유
   @@unique([projectId, positionId])
+  @@map("project_positions")
 }
 
 // 프로젝트-기술 스택 연결. 프로젝트나 기술 스택이 삭제되면 연결도 함께 삭제(FR-009)
@@ -55,6 +58,7 @@ model ProjectTechStack {
   techStack TechStack @relation(fields: [techStackId], references: [id], onDelete: Cascade)
 
   @@id([projectId, techStackId])
+  @@map("project_tech_stacks")
 }
 
 // 팀원 기록. 프로젝트 포지션이 삭제되면 포지션만 없음으로 바뀜(FR-010)
@@ -74,5 +78,6 @@ model ProjectMember {
   // 한 프로젝트에서 같은 사용자의 현재 팀원 기록은 하나(FR-012)
   @@unique([projectId, userId], where: { leftAt: null })
   // 팀장 역할의 기록은 프로젝트당 하나(FR-012)
-  @@unique([projectId], map: "ProjectMember_project_id_leader_key", where: { role: "LEADER" })
+  @@unique([projectId], map: "project_members_project_id_leader_key", where: { role: "LEADER" })
+  @@map("project_members")
 }

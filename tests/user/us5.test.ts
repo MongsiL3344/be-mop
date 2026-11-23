@@ -8,7 +8,7 @@ const SIGNUP = "/users/signup";
 const valid = { email: "alice@example.com", password: "password1", nickname: "alice" };
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

@@ -22,7 +22,7 @@ const seedUser = async (data: { email: string; password: string; nickname: strin
 const allNotifications = () => prisma.notification.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "User", "Notification" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "users", "notifications" RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {
